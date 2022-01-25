@@ -3,7 +3,7 @@
 # NHL Breakout Scores
 Model stuffs to try and find the players most likely to have a breakout season
 
-![NHL Breakout Meme](assets/cover_meme.PNG "NHL Breakout Scores meme")
+![NHL Breakout Meme](assets/nhl_breakout_meme.PNG "NHL Breakout Scores meme")
 
 # NHL Expansion Draft Analyzer
 > Modeling stuffs to try and find the players most likely to have a breakout season
