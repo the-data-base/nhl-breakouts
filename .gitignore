@@ -130,3 +130,7 @@ dmypy.json
 
 # test_data
 test_data/
+
+# system files
+.vscode/
+.DS_Store
