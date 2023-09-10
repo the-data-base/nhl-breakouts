@@ -130,6 +130,8 @@ dmypy.json
 
 # test_data
 test_data/
+.output
+*.csv
 
 # system files
 .vscode/
