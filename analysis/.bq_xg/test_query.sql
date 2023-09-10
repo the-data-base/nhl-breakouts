@@ -11,8 +11,6 @@ select
   play_total_seconds_elapsed,
   play_x_coordinate as x_coord,
   play_y_coordinate as y_coord,
-  adj_x_coordinate as adj_x_coord,
-  adj_y_coordinate as adj_y_coord,
   play_distance,
   play_angle,
   rink_side,
@@ -23,7 +21,7 @@ select
   xg_strength_state_code,
   xg_model_id,
   xg_proba,
-  x_goal
+  x_goal,
 
 from nhl-breakouts.analytics_intermediate.f_plays
 where 1 = 1
