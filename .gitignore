@@ -5,9 +5,7 @@ __pycache__/
 
 # C extensions
 *.so
-*/.bg_xg/
-*/.output/
-
+!.*/
 # Distribution / packaging
 .Python
 build/
