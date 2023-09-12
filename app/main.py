@@ -2,15 +2,15 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import plotly.express as px
 from PIL import Image
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 
 # Module imports
-from app.utils.extract import get_season_data
+from app.utils.extract import get_season_data, get_player_headshot
 from app.utils.transform import get_shot_goal_data
-from app.utils.extract import get_player_headshot
 from app.utils.visualize import create_rink
 
 def normalize_xg_dataframe():
@@ -64,27 +64,26 @@ def create_xg_array(data, is_smooth = True):
 def plot_comparisons(normalized_df, player_name):
     ev_data = normalized_df[normalized_df['xg_strength_state_code'] == 'ev']
 
-    # Set vars
-    image_path = '.output/img.png'
-
     # Create data
     all_xg = create_xg_array(ev_data, is_smooth = True)
     player_xg = create_xg_array(ev_data[ev_data['player_name'] == player_name], is_smooth = True)
     new_diff = player_xg - all_xg
 
-    # Assuming you have an image file at '.output/mcd.png'
+    # Get the player's headshot
     filter = ev_data[ev_data['player_name'] == player_name]
     player_id = np.unique(filter[['player_id']])
     rows = [get_player_headshot(player_id) for player_id in player_id]
     headshots_df = pd.DataFrame(rows)
-    headshots_df['img'].iloc[0].save(image_path, format = 'PNG')
-    print("Saved image to {}".format(image_path))
+    headshots_df['img'].iloc[0].save('player_img.png', format = 'PNG')
+    print("Saved image to player_img.png")
 
-    # Load the image
-    mcd_image = Image.open(image_path)
+    # Create the rink
+    rink = create_rink()
+    rink.savefig('rink_img.png', format='png', dpi=300, transparent=True)
 
-    # Create the OffsetImage object
-    mcd_imagebox = OffsetImage(mcd_image, zoom=0.9)
+    # Load the images
+    player_img = Image.open('player_img.png')
+    rink_img = Image.open('rink_img.png')
 
     # Calculate the position for the image (adjust as needed)
     image_x = 0.1  # Adjust the x-coordinate
@@ -99,33 +98,69 @@ def plot_comparisons(normalized_df, player_name):
     elif data_max > abs(data_min):
         data_min = data_max * -1
 
-    fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='w', edgecolor='k')
+    x, y = np.meshgrid(np.linspace(0, 89, 100), np.linspace(-42.5, 42.5, 85))
+    # fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='w', edgecolor='k')
 
-    # Add the image to the plot
-    ab = AnnotationBbox(mcd_imagebox, (image_x, image_y), frameon=False, xycoords='axes fraction')
-    ax.add_artist(ab)
+    meshgrid_df = pd.DataFrame({'x': x.flatten(), 'y': y.flatten(), 'z': new_diff.flatten()})
 
-    create_rink(ax, plot_half=True, board_radius=25, alpha=1.0)
+    # Create a scatter plot using plotly
+    fig = px.scatter(meshgrid_df, x='x', y='y', color='z',
+                    color_continuous_scale='RdBu_r',
+                    title=f'{player_name} vs League xGoal',
+                    labels={'z': 'Difference'},
+                    range_color=[data_min, data_max])
 
-    ax = ax.contourf(
-        new_diff, alpha=0.8, cmap='bwr',
-        extent=(0, 89, -42.5, 42.5),
-        levels=np.linspace(data_min, data_max, 12),
-        vmin=data_min,
-        vmax=data_max,
-        # norm = mpl.colors.Normalize(vmin = -0.05, vmax = 0.05),
+    # Add the player's image
+    fig.add_layout_image(
+        source=player_img,
+        x=image_x,
+        y=image_y,
+        xanchor="center",
+        yanchor="top",
+        xref="paper",
+        yref="paper",
+        sizex=0.2,
+        sizey=0.2,
     )
 
-    # Set the title and subtitle with manual padding
-    title_text = f'{player_name} vs League xGoal'
-    subtitle_text = 'Is that gud???'
+    # Add the background rink image
+    fig.add_layout_image(
+        source=rink_img,
+        x=-17, # Bunch of trial and error to figure out
+        y=56, # Bunch of trial and error to figure out
+        xref="x",
+        yref="y",
+        sizex=131, # Bunch of trial and error to figure out
+        sizey=111, # Bunch of trial and error to figure out
+        opacity=1,
+        sizing="stretch",
+        layer="above"
+    )
 
-    plt.title(title_text, fontsize=22, pad=75)  # Adjust the pad value for title padding
-    plt.suptitle(subtitle_text, y=.95, fontsize=16)
+    # Customize the layout
+    fig.update_layout(
+        coloraxis_colorbar=dict(title="Difference"),
+        coloraxis_cmin=data_min,
+        coloraxis_cmax=data_max,
+        height=600,
+        width=600,
+    )
 
-    fig.colorbar(ax, orientation="horizontal", pad=0.05)
-    plt.axis('off')
-    plt.show()
+    # Center the title
+    fig.update_layout(title_x=0.5)
+
+    # Remove gridlines and background from scatterplot
+    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False)
+
+    # Remove the background color
+    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')
+
+    # Remove x and y axis labels
+    fig.update_xaxes(title_text='')
+    fig.update_yaxes(title_text='')
+
+    # Show the interactive plot
+    fig.show()
 
 def main(
     download_season = False

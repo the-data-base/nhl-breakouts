@@ -2,11 +2,14 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 def create_rink(
-    ax,
-    plot_half = False,
-    board_radius = 28,
+    plot_half = True,
+    board_radius = 25,
     alpha = 1,
 ):
+
+    # Create a new figure
+    fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='w', edgecolor='k')
+
     #Cornor Boards
     ax.add_artist(mpl.patches.Arc((100-board_radius , (85/2)-board_radius), board_radius * 2, board_radius * 2 , theta1=0, theta2=89, edgecolor='Black', lw=4.5,zorder=0, alpha = alpha)) #Top Right
     ax.add_artist(mpl.patches.Arc((-100+board_radius+.1 , (85/2)-board_radius), board_radius * 2, board_radius * 2 ,theta1=90, theta2=180, edgecolor='Black', lw=4.5,zorder=0, alpha = alpha)) #Top Left
@@ -71,16 +74,20 @@ def create_rink(
         ax.set_xlim(-0.5, 100.5)
         ax.set_ylim(-43, 43)
 
+    # Remove axis labels
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+
+    # Remove axis ticks
+    ax.xaxis.set_ticks_position('none')
+    ax.yaxis.set_ticks_position('none')
 
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_visible(False)
     ax.spines['bottom'].set_visible(False)
     ax.spines['top'].set_visible(False)
 
-def test_plot():
-    fig, ax = plt.subplots(1,1, figsize=(10,12), facecolor='w', edgecolor='k')
-    create_rink(ax, plot_half=True)
-    plt.show()
+    return fig
 
 if __name__ == '__main__':
-    test_plot()
+    pass
