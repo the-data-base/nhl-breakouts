@@ -14,7 +14,7 @@ from app.utils.transform import get_shot_goal_data
 from app.utils.visualize import create_rink
 
 def normalize_xg_dataframe():
-    xg_df = pd.read_csv('.bq_xg/202202_test.csv', delimiter= ',')
+    xg_df = pd.read_csv('bq_results/202202_player_shots.csv', delimiter= ',')
 
     # Subset
     normalized_df = xg_df[[
@@ -163,6 +163,7 @@ def plot_comparisons(normalized_df, player_name):
     fig.show()
 
 def main(
+    player_name = 'Connor McDavid'
     download_season = False
     ):
 
@@ -180,7 +181,6 @@ def main(
     normalized_df = normalize_xg_dataframe()
 
     # Plot comparisons
-    player_name = 'Connor McDavid'
     plot_comparisons(normalized_df, player_name)
 
 if __name__ == '__main__':
