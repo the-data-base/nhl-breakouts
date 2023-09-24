@@ -1,0 +1,14 @@
+#player-name-dropdown .VirtualizedSelectFocusedOption{
+    color: white!important;
+    background-color: #111111;
+}
+#player-name-dropdown .VirtualizedSelectOption {
+    color: black;
+}
+#season-year-dropdown .VirtualizedSelectFocusedOption{
+    color: white!important;
+    background-color: #111111;
+}
+#season-year-dropdown .VirtualizedSelectOption {
+    color: black;
+}

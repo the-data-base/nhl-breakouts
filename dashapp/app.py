@@ -30,7 +30,6 @@ def create_card(title):
     , width = 2)
     return card
 
-
 # Calculate age
 def calculate_age(born):
     born_dt = datetime.strptime(born, "%Y-%m-%d")
@@ -178,16 +177,33 @@ app.layout = html.Div([
     # Align the dropdown menu to the center
     dbc.Row([
         dbc.Col(
-            dcc.Dropdown(
-                id='player-dropdown',
-                options=set_player_dropdown_options(),
-                value='Connor McDavid',
-                clearable=False
+            html.Div([
+                html.Label('Player:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
+                dcc.Dropdown(
+                    id='player-name-dropdown',
+                    options=set_player_dropdown_options(),
+                    value='Connor McDavid',
+                    clearable=False
+                )],
             ),
-            width=3
-        )
-    ],
-    justify='center'),
+            width='4'
+        ), # column
+        dbc.Col(
+            html.Div([
+                html.Label('Season:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
+                dcc.Dropdown(
+                    id='season-year-dropdown',
+                    options=[
+                        {'label': 'Current', 'value': '2023'}
+                    ],
+                    value='2023',
+                    clearable=False,
+                    style={'color': '#000000'}
+                )],
+            ),
+            width='4'
+        ), # column
+    ], justify='center'), # row
 
     # Cards for player-specific metrics
     html.Div(dbc.Container(
@@ -300,7 +316,7 @@ def update_fig(metric):
     Output(component_id='pp-card-value', component_property='children'),
     Output(component_id='pk-card-value', component_property='children'),
     Output(component_id='penalty-card-value', component_property='children'),
-    Input(component_id='player-dropdown', component_property='value')
+    Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_cards(player_name):
     stats = get_player_stats(player_name)
@@ -310,7 +326,7 @@ def set_player_cards(player_name):
 
 @callback(
     Output(component_id='player-stats', component_property='children'),
-    Input(component_id='player-dropdown', component_property='value')
+    Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_stats(selected_player):
     stats = get_player_card(selected_player)
@@ -318,14 +334,14 @@ def set_player_stats(selected_player):
 
 @callback(
     Output(component_id='player-name', component_property='children'),
-    Input(component_id='player-dropdown', component_property='value')
+    Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_name(selected_player):
     return selected_player
 
 @callback(
     Output(component_id='rink', component_property='figure'),
-    Input(component_id='player-dropdown', component_property='value')
+    Input(component_id='player-name-dropdown', component_property='value')
 )
 def plot_rink(player_name):
     # Normalize xg dataframe
@@ -337,7 +353,7 @@ def plot_rink(player_name):
 
 @callback(
     Output(component_id='player-image', component_property='src'),
-    Input(component_id='player-dropdown', component_property='value')
+    Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_headshot(player_name):
     stats = get_player_card(player_name)
