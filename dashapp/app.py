@@ -3,7 +3,7 @@ from dash import Dash, html, dash_table, dcc, callback, Output, Input
 import pandas as pd
 import plotly.express as px
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
+#import plotly.graph_objects as go
 from datetime import date, datetime
 
 # Read data
