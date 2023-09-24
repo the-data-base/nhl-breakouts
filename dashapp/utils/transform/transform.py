@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import pandas as pd
 import plotly.express as px
 from PIL import Image
@@ -6,36 +7,19 @@ from matplotlib import pyplot
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 
+
 # Modules
 from dashapp.utils.visualize.create_rink import create_rink
 
 pyplot.ioff()
 pyplot.switch_backend('Agg')
 
-def normalize_xg_dataframe():
-    xg_df = pd.read_csv('data/bq_results/202202_player_shots.csv', delimiter= ',')
-
-    # Subset
-    normalized_df = xg_df[[
-        'player_name',
-        'player_id',
-        'event_type',
-        'play_period',
-        'zone_type',
-        'zone',
-        'xg_strength_state_code',
-        'x_goal',
-        'xg_proba',
-        'play_distance',
-        'play_angle',
-        'x_coord',
-        'y_coord']].copy()
-
+def normalize_shot_coordinates(input_df):
     # Normalize x & y coordinates such that when x is negative, flip x and y to force to be shooting "right"
+    normalized_df = input_df.copy()
     normalized_df['adj_x_coord'] = normalized_df.apply(lambda row: -row['x_coord'] if row['x_coord'] < 0 else row['x_coord'], axis=1)
     normalized_df['adj_y_coord'] = normalized_df.apply(lambda row: -row['y_coord'] if row['x_coord'] < 0 else row['y_coord'], axis=1)
 
-    # Print summary stats
     # print("Normalized Dataframe Summary Stats")
     # print(f"Rows: {len(normalized_df)}")
     # print("xGoals Max {:.2f}".format(normalized_df['xg_proba'].max()))
@@ -60,12 +44,71 @@ def create_xg_array(data, is_smooth = True):
 
     return xgoals
 
-def plot_comparisons(normalized_df, player_name):
-    ev_data = normalized_df[normalized_df['xg_strength_state_code'] == 'ev']
+def normalize_xg_dataframe_by_chunk(raw_filename, normalized_filename, chunksize=50000):
+    if os.path.exists(normalized_filename):
+        os.remove(normalized_filename)
+    # Read the data in chunks
+    raw_df = pd.read_csv(raw_filename, delimiter= ',', chunksize=chunksize)
 
-    # Create data
-    all_xg = create_xg_array(ev_data, is_smooth = True)
-    player_xg = create_xg_array(ev_data[ev_data['player_name'] == player_name], is_smooth = True)
+    # Normalize each chunk, writing it back to a single csv in append mode
+    for i, chunk in enumerate(raw_df):
+        print(f"Normalizing chunk {i}")
+        subset_df = chunk[[
+            'player_name',
+            'player_id',
+            'event_type',
+            'play_period',
+            'zone_type',
+            'zone',
+            'xg_strength_state_code',
+            'x_goal',
+            'xg_proba',
+            'play_distance',
+            'play_angle',
+            'x_coord',
+            'y_coord']].copy()
+        normalized_df = normalize_shot_coordinates(subset_df)
+        normalized_df.to_csv(normalized_filename, mode='a', header=True, index=False)
+    return True
+
+def get_player_xg(filename, xg_strength_state_code, player_name, chunksize=50000):
+    df = pd.read_csv(filename, delimiter= ',', chunksize=chunksize)
+    player_df = pd.DataFrame()
+    for i, chunk in enumerate(df):
+        print('Processing player chunk: {}'.format(i))
+        # concat chunks vertically if chunk player_name matches player_name and xg_strength_state_code matches xg_strength_state_code (both conditions on the same line)
+        subset_chunk = chunk.loc[(chunk['player_name'] == player_name) & (chunk['xg_strength_state_code'] == xg_strength_state_code)]
+        player_df = pd.concat([player_df, subset_chunk])
+
+    player_xgoals = create_xg_array(player_df, is_smooth = True)
+
+    return player_xgoals
+
+def get_league_xg(filename, xg_strength_state_code, chunksize=50000):
+    df = pd.read_csv(filename, delimiter= ',', chunksize=chunksize)
+    league_df = pd.DataFrame()
+    for i, chunk in enumerate(df):
+        print('Processing league chunk: {}'.format(i))
+        subset_chunk = chunk.loc[chunk['xg_strength_state_code'] == xg_strength_state_code]
+        league_df = pd.concat([league_df, subset_chunk])
+        league_xgoals = create_xg_array(league_df, is_smooth = True)
+
+    # save league xgoals to csv file
+    league_xgoals = create_xg_array(league_df, is_smooth = True)
+
+    return league_xgoals
+
+def plot_comparisons(player_name):
+    xg_strength_state_code = 'ev'
+    raw_filename = 'data/bq_results/202202_player_shots.csv'
+    normalized_filename = 'data/shots_xg/202202_player_shots_normalized.csv'
+
+    # Normalize the raw data by chunks
+    normalize_xg_dataframe_by_chunk(raw_filename, normalized_filename)
+
+    # Read xgoals from player and league csv files
+    all_xg = get_league_xg(normalized_filename, xg_strength_state_code)
+    player_xg = get_player_xg(normalized_filename, xg_strength_state_code, player_name)
     new_diff = player_xg - all_xg
 
     # Create the rink

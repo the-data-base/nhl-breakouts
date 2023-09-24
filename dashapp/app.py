@@ -8,7 +8,7 @@ from datetime import date, datetime
 
 # Modules
 from dashapp.utils.extract.extract import get_player_headshot
-from dashapp.utils.transform.transform import normalize_xg_dataframe, plot_comparisons
+from dashapp.utils.transform.transform import plot_comparisons
 
 # Read data from local CSVs and create the initial DataFrame
 # TODO: dynamically read data from Cloud Storage
@@ -16,7 +16,6 @@ def read_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
 ranks_df = read_data('data/bq_results/202202_player_ranks.csv')
-shots_df = read_data('data/bq_results/202202_player_shots.csv')
 
 # Create a card with given title and value
 def create_card(title):
@@ -35,15 +34,6 @@ def calculate_age(born):
     born_dt = datetime.strptime(born, "%Y-%m-%d")
     today = date.today()
     return today.year - born_dt.year - ((today.month, today.day) < (born_dt.month, born_dt.day))
-
-# Plot the rink with shots
-def plot_rink(player_name):
-    # Normalize xg dataframe
-    normalized_df = normalize_xg_dataframe()
-
-    # Plot comparisons
-    fig = plot_comparisons(normalized_df, player_name)
-    return fig
 
 def get_player_card(player_name):
     df = ranks_df
@@ -344,11 +334,7 @@ def set_player_name(selected_player):
     Input(component_id='player-name-dropdown', component_property='value')
 )
 def plot_rink(player_name):
-    # Normalize xg dataframe
-    normalized_df = normalize_xg_dataframe()
-
-    # Plot comparisons
-    fig = plot_comparisons(normalized_df, player_name)
+    fig = plot_comparisons(player_name)
     return fig
 
 @callback(
