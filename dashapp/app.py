@@ -6,30 +6,82 @@ import dash_bootstrap_components as dbc
 #import plotly.graph_objects as go
 from datetime import date, datetime
 
-# Read data
+# Modules
+from dashapp.utils.extract.extract import get_player_headshot
+from dashapp.utils.transform.transform import normalize_xg_dataframe, plot_comparisons
+
+# Read data from local CSVs and create the initial DataFrame
+# TODO: dynamically read data from Cloud Storage
 def read_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
-# Create player-specific DataFrame
-def create_player_df(dataframe, player_name):
-    player_df = dataframe[dataframe['player_name'] == player_name]
-    cols = ['player_name', 'primary_position_type', 'game_type', 'EV XG', 'EV Offense', 'EV Defense', 'Finishing', 'Gx60', 'A1x60', 'PP', 'PK', 'Penalty']
-    return player_df[cols], player_df
+ranks_df = read_data('data/bq_results/202202_player_ranks.csv')
+shots_df = read_data('data/bq_results/202202_player_shots.csv')
 
 # Create a card with given title and value
-def create_card(title, value):
-    return dbc.Card(
-        dbc.CardBody([
-            html.H2(value, className="text-nowrap"),
-            html.H4(title, className="text-nowrap")
-        ]),
-        className="col-auto text-center m-2 p-2")
+def create_card(title):
+    card = dbc.Col(
+        dbc.Card(
+            dbc.CardBody([
+                html.H2("Default", className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-value"),
+                html.H4(title, className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-title"),
+            ])
+        )
+    , width = 2)
+    return card
 
-# Calcualte age
+
+# Calculate age
 def calculate_age(born):
     born_dt = datetime.strptime(born, "%Y-%m-%d")
     today = date.today()
     return today.year - born_dt.year - ((today.month, today.day) < (born_dt.month, born_dt.day))
+
+# Plot the rink with shots
+def plot_rink(player_name):
+    # Normalize xg dataframe
+    normalized_df = normalize_xg_dataframe()
+
+    # Plot comparisons
+    fig = plot_comparisons(normalized_df, player_name)
+    return fig
+
+def get_player_card(player_name):
+    df = ranks_df
+    player_df = df[df['player_name'] == player_name]
+    return {
+        'id': player_df['player_id'].values[0],
+        'name': player_name,
+        'age': calculate_age(player_df['birth_date'].values[0]),
+        'country': player_df['nationality'].values[0],
+        'position': player_df['primary_position_name'].values[0],
+        'shoots': player_df['shoots_catches'].values[0]
+    }
+
+def get_player_stats(player_name):
+    df = ranks_df
+    player_df = df[df['player_name'] == player_name]
+    stats = {
+        'ev_xg': player_df['EV XG'].values[0],
+        'ev_offense': player_df['EV Offense'].values[0],
+        'ev_defense': player_df['EV Defense'].values[0],
+        'finishing': player_df['Finishing'].values[0],
+        'gx60': player_df['Gx60'].values[0],
+        'a1x60': player_df['A1x60'].values[0],
+        'pp': player_df['PP'].values[0],
+        'pk': player_df['PK'].values[0],
+        'penalty': player_df['Penalty'].values[0]
+    }
+    # round to 2 decimal places
+    for key, value in stats.items():
+        stats[key] = round(value, 2)
+
+    return stats
+
+
+def set_player_dropdown_options():
+    df = ranks_df
+    return [{'label': player, 'value': player} for player in df['player_name'].unique()]
 
 # Set colors
 colors = {
@@ -42,19 +94,35 @@ colors = {
 #app = Dash(__name__, external_stylesheets=[dbc.themes.SPACELAB])
 app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY theme for dark mode
 
-# Read data and create the initial DataFrame
-ranks_df = read_data('.output/bq_results/202202_player_ranks.csv')
-shots_df = read_data('.output/bq_results/202202_player_shots.csv')
 
-# Initial player selection
-initial_player_name = 'Connor McDavid'
-mcdavid_df, mcdavid_df_all = create_player_df(ranks_df, initial_player_name)
+
+# Player stat cards
+cards = html.Div([
+    dbc.Row([
+        create_card("EV XG"),
+        create_card("EV Offense"),
+        create_card("EV Defense"),
+        create_card("Finishing"),
+        create_card("Gx60"),
+
+    ],
+    className="cards justify-content-center",
+    ),
+    dbc.Row([
+        create_card("A1x60"),
+        create_card("PP"),
+        create_card("PK"),
+        create_card("Penalty"),
+    ],
+    className="cards justify-content-center",
+    ),
+])
 
 # Define app layout
 app.layout = html.Div([
     dbc.Navbar(
         dbc.Container([
-            html.Img(src='assets/avatar.jpg', height="40px"),  # Add this line to insert the image
+            html.Img(src='images/avatar.jpg', height="40px"),  # Add this line to insert the image
             dbc.NavbarBrand("NHL App", href="/"),
             dbc.Nav(
                 [
@@ -72,9 +140,9 @@ app.layout = html.Div([
 
    # Create a div for the header with an image, player name, and subtitles
     html.Div([
-        html.Img
-            (src='assets/player_img.png',
-             height="200px",
+        html.Img(
+            id='player-image',
+            height="200px",
             style={
                 'margin-right': '10x',
                 'border-radius': '50%',  # Apply circular border
@@ -84,7 +152,7 @@ app.layout = html.Div([
         ),
         html.Div([
             html.H1(
-                children='Connor McDavid',
+                id='player-name',
                 style={
                     'textAlign': 'center',
                     'color': colors['title'],
@@ -94,7 +162,7 @@ app.layout = html.Div([
                 }
             ),
             html.H6(
-                children = f'Age: {calculate_age(mcdavid_df_all["birth_date"].values[0])} | Country: {mcdavid_df_all["nationality"].values[0]} | Position: {mcdavid_df_all["primary_position_name"].values[0]} | Shoots: {mcdavid_df_all["shoots_catches"].values[0]}',
+                id='player-stats',
                 style={
                     'textAlign': 'center',
                     'color': colors['text'],
@@ -106,27 +174,63 @@ app.layout = html.Div([
 
     html.Br(),
 
+    # New row for a searchable dropdown menu containing player names
+    # Align the dropdown menu to the center
+    dbc.Row([
+        dbc.Col(
+            dcc.Dropdown(
+                id='player-dropdown',
+                options=set_player_dropdown_options(),
+                value='Connor McDavid',
+                clearable=False
+            ),
+            width=3
+        )
+    ],
+    justify='center'),
+
     # Cards for player-specific metrics
     html.Div(dbc.Container(
-        html.Div([
-            dbc.Row([
-                create_card("EV XG", mcdavid_df['EV XG'].round(2)),
-                create_card("EV Offense", mcdavid_df['EV Offense'].round(2)),
-                create_card("EV Defense", mcdavid_df['EV Defense'].round(2)),
-                create_card("Finishing", mcdavid_df['Finishing'].round(2)),
-                create_card("Gx60", mcdavid_df['Gx60'].round(2)),
-                create_card("A1x60", mcdavid_df['A1x60'].round(2)),
-                create_card("PP", mcdavid_df['PP'].round(2)),
-                create_card("PK", mcdavid_df['PK'].round(2)),
-                create_card("Penalty", mcdavid_df['Penalty'].round(2))
-            ],
-            className="cards justify-content-center"
-            ),
-        ])
+        cards
     )),
 
     html.Br(),
 
+    dbc.Row([
+        # Plot for the ice rink
+        dbc.Col(
+            html.Div([
+                dcc.Graph(
+                    figure={},
+                    id='rink',
+                    style={'height': '650px'}
+                ),
+            ]),
+            width=6
+        ),
+
+        dbc.Col(
+            html.Div([
+                dcc.RadioItems(
+                    options=[
+                        {'label': metric, 'value': metric} for metric in ['EV XG', 'EV Offense', 'EV Defense', 'Finishing']
+                    ],
+                    value='EV XG',
+                    inline=True,
+                    id='rank-metric-radio',
+                    labelStyle={'display': 'block', 'padding-right': '20px'}  # Add padding between radio options
+                ),
+                dcc.Graph(
+                    figure={},
+                    id='metric-bar-chart',
+                    style={'height': '650px'}
+                ),
+            ]),
+            width=6
+        ),
+    ]),
+
+    # A new row that contains the scatterplot from plot_rink
     dbc.Row([
         dbc.Col(
             dash_table.DataTable(
@@ -150,26 +254,7 @@ app.layout = html.Div([
                     'backgroundColor': '#444d56',  # Darker background color
                         },]
             ),
-            width=6
-        ),
-        dbc.Col(
-            html.Div([
-                dcc.RadioItems(
-                    options=[
-                        {'label': metric, 'value': metric} for metric in ['EV XG', 'EV Offense', 'EV Defense', 'Finishing']
-                    ],
-                    value='EV XG',
-                    inline=True,
-                    id='rank-metric-radio',
-                    labelStyle={'display': 'block', 'padding-right': '20px'}  # Add padding between radio options
-                ),
-                dcc.Graph(
-                    figure={},
-                    id='metric-bar-chart',
-                    style={'height': '650px'}
-                ),
-            ]),
-            width=6
+            width=12
         ),
     ]),
 
@@ -204,6 +289,59 @@ def update_fig(metric):
     )
 
     return fig
+
+@callback(
+    Output(component_id='ev-xg-card-value', component_property='children'),
+    Output(component_id='ev-offense-card-value', component_property='children'),
+    Output(component_id='ev-defense-card-value', component_property='children'),
+    Output(component_id='finishing-card-value', component_property='children'),
+    Output(component_id='gx60-card-value', component_property='children'),
+    Output(component_id='a1x60-card-value', component_property='children'),
+    Output(component_id='pp-card-value', component_property='children'),
+    Output(component_id='pk-card-value', component_property='children'),
+    Output(component_id='penalty-card-value', component_property='children'),
+    Input(component_id='player-dropdown', component_property='value')
+)
+def set_player_cards(player_name):
+    stats = get_player_stats(player_name)
+
+    # return each stat as separate values
+    return stats['ev_xg'], stats['ev_offense'], stats['ev_defense'], stats['finishing'], stats['gx60'], stats['a1x60'], stats['pp'], stats['pk'], stats['penalty']
+
+@callback(
+    Output(component_id='player-stats', component_property='children'),
+    Input(component_id='player-dropdown', component_property='value')
+)
+def set_player_stats(selected_player):
+    stats = get_player_card(selected_player)
+    return f'Age: {stats["age"]} | Country: {stats["country"]} | Position: {stats["position"]} | Shoots: {stats["shoots"]} | ID: {stats["id"]}'
+
+@callback(
+    Output(component_id='player-name', component_property='children'),
+    Input(component_id='player-dropdown', component_property='value')
+)
+def set_player_name(selected_player):
+    return selected_player
+
+@callback(
+    Output(component_id='rink', component_property='figure'),
+    Input(component_id='player-dropdown', component_property='value')
+)
+def plot_rink(player_name):
+    # Normalize xg dataframe
+    normalized_df = normalize_xg_dataframe()
+
+    # Plot comparisons
+    fig = plot_comparisons(normalized_df, player_name)
+    return fig
+
+@callback(
+    Output(component_id='player-image', component_property='src'),
+    Input(component_id='player-dropdown', component_property='value')
+)
+def set_player_headshot(player_name):
+    stats = get_player_card(player_name)
+    return get_player_headshot(stats['id'])
 
 # Run the app
 if __name__ == '__main__':

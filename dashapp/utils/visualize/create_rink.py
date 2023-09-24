@@ -88,6 +88,3 @@ def create_rink(
     ax.spines['top'].set_visible(False)
 
     return fig
-
-if __name__ == '__main__':
-    pass
