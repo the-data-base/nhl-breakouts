@@ -2,9 +2,24 @@
 --... query the top percentile forwards in the NHL over the past 3 seasons
 
 with
+-- the player's current team
+current_team as (
+select
+ distinct s.player_team_season_id
+ ,s.player_id
+ ,s.team_id
+ ,s.season_id
+ ,t.abbreviation as team_code
+ ,t.full_name as team_full_name
+ ,t.team_name
+from nhl-breakouts.dbt_dom.d_player_team_season as s
+left join nhl-breakouts.dbt_dom.d_teams as t on t.team_id = s.team_id
+where is_player_current_team is True
+qualify row_number() over (partition by player_id order by player_season_team_last_dt desc) = 1
+)
 
 -- raw summaries
-raw_stats as (
+,raw_stats as (
 select
 -- identifiers
   s.player_id
@@ -62,7 +77,6 @@ select
   ,round(sum(shots_sh_xgf) / ((sum(time_on_ice_minutes) + 200) / 60),2) as xgf_sh_per60
   ,round(sum(shots_sh_xga) / ((sum(time_on_ice_minutes) + 200) / 60),2) as xga_sh_per60
   ,round((sum(shots_sh_xgf) - sum(shots_sh_xga)) / ((sum(time_on_ice_minutes) + 200) / 60),2) as xg_sh_diff_per60
-
 from
   nhl-breakouts.dbt_dom.f_player_season as s
 where 1 =1
@@ -90,6 +104,10 @@ select
   ,p.weight
   ,p.primary_number
   ,p.shoots_catches
+  ,t.team_id as current_team_id
+  ,t.team_full_name as current_team_full_name
+  ,t.team_name as current_team_name
+  ,t.team_code as current_team_code
   -- rankings (raw_)
   ,100*percent_rank() over (partition by primary_position_type, game_type order by avg_toi_m asc)  as `Avg TOI`
   ,100*percent_rank() over (partition by primary_position_type, game_type order by toi_s asc)  as `TOI`
@@ -146,8 +164,10 @@ from
   raw_stats as s
   left join nhl-breakouts.analytics_intermediate.d_players as p
     on p.player_id = s.player_id
+  left join current_team as t
+    on p.player_id = t.player_id
 )
 
 select *
 from percentiles
-order by 14 desc;
+order by 18 desc;

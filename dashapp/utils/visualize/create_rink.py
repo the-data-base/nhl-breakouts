@@ -8,7 +8,7 @@ def create_rink(
 ):
 
     # Create a new figure
-    fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='w', edgecolor='k')
+    fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='none', edgecolor='none')
 
     #Cornor Boards
     ax.add_artist(mpl.patches.Arc((100-board_radius , (85/2)-board_radius), board_radius * 2, board_radius * 2 , theta1=0, theta2=89, edgecolor='Black', lw=4.5,zorder=0, alpha = alpha)) #Top Right

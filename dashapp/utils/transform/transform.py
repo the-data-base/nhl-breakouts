@@ -135,12 +135,16 @@ def plot_comparisons(player_name):
     # fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='w', edgecolor='k')
 
     meshgrid_df = pd.DataFrame({'x': x.flatten(), 'y': y.flatten(), 'z': new_diff.flatten()})
+    meshgrid_df['x'] = meshgrid_df['x'].round(0)
+    meshgrid_df['y'] = meshgrid_df['y'].round(0)
+    meshgrid_df['z'] = meshgrid_df['z'].round(4)
 
     # Create a scatter plot using plotly
     fig = px.scatter(meshgrid_df, x='x', y='y', color='z',
                     color_continuous_scale='RdBu_r',
                     title=f'{player_name} vs League xGoal',
                     labels={'z': 'Difference'},
+                    template='plotly',
                     range_color=[data_min, data_max])
 
     # Add the background rink image
@@ -159,21 +163,34 @@ def plot_comparisons(player_name):
 
     # Customize the layout
     fig.update_layout(
-        coloraxis_colorbar=dict(title="Difference"),
+        coloraxis_colorbar=dict(
+            title="Difference",
+            title_font=dict(color="white"),  # Set the title font color to white
+            x=0.5,  # Adjust the horizontal position of the color legend
+            y=-0.025,  # Adjust the vertical position of the color legend
+            xanchor='center',  # Center the color legend horizontally
+            yanchor='top',  # Place the color legend below the plot
+            orientation='h',  # Display the color legend horizontally
+            tickfont=dict(color="white"),  # Set the tick font color to white
+            nticks=10  # Set the number of tick marks on the color legend
+            ),
         coloraxis_cmin=data_min,
         coloraxis_cmax=data_max,
-        height=600,
-        width=600,
+        height=650,
+        width=650,
+        title_x=0.135,
+        plot_bgcolor='white',  # Set plot background color to white
+        paper_bgcolor='rgba(0, 0, 0, 0)',
+        title=dict(text=f'{player_name} vs League xGoal', font=dict(color="white")),  # Set the title font color to white
+        title_y=0.88,  # Move the title closer to the plot
     )
 
-    # Center the title
-    fig.update_layout(title_x=0.5)
+    # Set x and y axis ranges to match data
+    fig.update_xaxes(range=[-0.1, 100], tickfont=dict(color="white"))
+    fig.update_yaxes(range=[-42.6, 42.6], tickfont=dict(color="white"), showticklabels=False)
 
     # Remove gridlines and background from scatterplot
     fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False)
-
-    # Remove the background color
-    fig.update_layout(plot_bgcolor='rgba(0,0,0,0)')
 
     # Remove x and y axis labels
     fig.update_xaxes(title_text='')

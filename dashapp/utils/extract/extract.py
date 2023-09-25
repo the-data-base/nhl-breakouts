@@ -6,6 +6,7 @@ import requests
 # from google.cloud import storage
 from io import BytesIO
 from PIL import Image
+import pandas as pd
 
 # service_account_credentials = service_account.Credentials.from_service_account_file('secrets/google_credentials/google_storage_reader_credentials.json')
 # client = storage.Client(credentials=service_account_credentials)
@@ -51,12 +52,24 @@ def get_api(url):
     except Exception as e:
         print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - An unexpected error occurred: {e}")
 
-def get_player_headshot(player_id):
+def get_player_headshot(player_id, file_path = 'data/bq_results/2022_player_current_team.csv'):
     """Summary: Get player headshots from the NHL API and parse them into a DataFrame."""
 
-    # Set the base URL for the player headshots
-    # url = "https://cms.nhl.bamgrid.com/images/headshots/current/60x60/{}@2x.jpg".format(player_id)
-    url = 'https://assets.nhle.com/mugs/nhl/20222023/EDM/{}.png'.format(player_id)
+    # Logic to get the current player's team code
+    df1 = pd.read_csv(f'{file_path}')
+    df2 = df1[df1['player_id'] == player_id]
+
+    # Check if any rows match the filter
+    if not df2.empty:
+        # Get the value from the "team_code" column (assuming there's only one matching row)
+        team_code = df2.iloc[0]['team_code']
+        print(f"The team code for player ID {player_id} is {team_code}")
+    else:
+        team_code = 'NA'
+        print(f"No matching rows found for player ID {player_id}")    # Set the base URL for the player headshots
+
+    # Now, make the url
+    url = F'https://assets.nhle.com/mugs/nhl/20222023/{team_code}/{player_id}.png'.format(player_id)
 
     # Send an HTTP GET request to fetch the image data
     response = get_api(url.format(player_id=player_id))

@@ -16,6 +16,7 @@ def read_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
 ranks_df = read_data('data/bq_results/202202_player_ranks.csv')
+ranks_df = ranks_df.sort_values(by="EV XG", ascending = False)
 
 # Create a card with given title and value
 def create_card(title):
@@ -44,7 +45,12 @@ def get_player_card(player_name):
         'age': calculate_age(player_df['birth_date'].values[0]),
         'country': player_df['nationality'].values[0],
         'position': player_df['primary_position_name'].values[0],
-        'shoots': player_df['shoots_catches'].values[0]
+        'shoots': player_df['shoots_catches'].values[0],
+        'number': player_df['primary_number'].values[0],
+        'height': player_df['height'].values[0],
+        'weight': player_df['weight'].values[0],
+        'team_code': player_df['current_team_code'].values[0],
+        'team_name': player_df['current_team_name'].values[0]
     }
 
 def get_player_stats(player_name):
@@ -59,7 +65,8 @@ def get_player_stats(player_name):
         'a1x60': player_df['A1x60'].values[0],
         'pp': player_df['PP'].values[0],
         'pk': player_df['PK'].values[0],
-        'penalty': player_df['Penalty'].values[0]
+        'penalty': player_df['Penalty'].values[0],
+
     }
     # round to 2 decimal places
     for key, value in stats.items():
@@ -82,7 +89,6 @@ colors = {
 # Initialize the app
 #app = Dash(__name__, external_stylesheets=[dbc.themes.SPACELAB])
 app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY theme for dark mode
-
 
 
 # Player stat cards
@@ -111,7 +117,7 @@ cards = html.Div([
 app.layout = html.Div([
     dbc.Navbar(
         dbc.Container([
-            html.Img(src='images/avatar.jpg', height="40px"),  # Add this line to insert the image
+            html.Img(src='dashapp/images/avatar.jpg', height="40px"),  # Add this line to insert the image
             dbc.NavbarBrand("NHL App", href="/"),
             dbc.Nav(
                 [
@@ -136,6 +142,7 @@ app.layout = html.Div([
                 'margin-right': '10x',
                 'border-radius': '50%',  # Apply circular border
                 'border': '5px solid #000000',  # Border color
+                #'background-image': '/assets/images/test_logo.png',
                 #'box-shadow': '0px 0px 8px 0px #000000'  # Add shadow effect
             }
         ),
@@ -143,7 +150,7 @@ app.layout = html.Div([
             html.H1(
                 id='player-name',
                 style={
-                    'textAlign': 'center',
+                    'textAlign': 'lef',
                     'color': colors['title'],
                     'display': 'inline',
                     'font-weight': 'bold',  # Make the font bold
@@ -151,9 +158,17 @@ app.layout = html.Div([
                 }
             ),
             html.H6(
-                id='player-stats',
+                id='player-stats-1',
                 style={
-                    'textAlign': 'center',
+                    'textAlign': 'left',
+                    'color': colors['text'],
+                    'margin-left': '20px',  # Add margin to the right for spacing
+                }
+            ),
+           html.H6(
+                id='player-stats-2',
+                style={
+                    'textAlign': 'left',
                     'color': colors['text'],
                     'margin-left': '20px',  # Add margin to the right for spacing
                 }
@@ -195,6 +210,9 @@ app.layout = html.Div([
         ), # column
     ], justify='center'), # row
 
+    html.Br(),
+
+
     # Cards for player-specific metrics
     html.Div(dbc.Container(
         cards
@@ -209,7 +227,7 @@ app.layout = html.Div([
                 dcc.Graph(
                     figure={},
                     id='rink',
-                    style={'height': '650px'}
+                    style={'height': '700px'}
                 ),
             ]),
             width=6
@@ -235,6 +253,8 @@ app.layout = html.Div([
             width=6
         ),
     ]),
+
+    html.Br(),
 
     # A new row that contains the scatterplot from plot_rink
     dbc.Row([
@@ -277,14 +297,14 @@ def update_fig(metric):
         forwards.sort_values(by=metric, ascending=False),
         x='player_name',
         y=metric,
-        color="primary_position_name",
+       # color="primary_position_name",
         barmode='stack'
     )
 
     # Dark mode-friendly color scheme
     fig.update_layout(
         plot_bgcolor='rgba(0, 0, 0, 0)',  # Set plot background color to transparent
-        paper_bgcolor='rgba(0, 0, 0, 0.6)',  # Set paper background color for dark mode
+        paper_bgcolor='rgba(0, 0, 0, 0)', # Set plot paper color to transparent
         font=dict(color=colors['text']),  # Set text color
         xaxis=dict(linecolor=colors['text']),  # Set x-axis line color
         yaxis=dict(linecolor=colors['text']),  # Set y-axis line color
@@ -315,12 +335,20 @@ def set_player_cards(player_name):
     return stats['ev_xg'], stats['ev_offense'], stats['ev_defense'], stats['finishing'], stats['gx60'], stats['a1x60'], stats['pp'], stats['pk'], stats['penalty']
 
 @callback(
-    Output(component_id='player-stats', component_property='children'),
+    Output(component_id='player-stats-1', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_stats(selected_player):
     stats = get_player_card(selected_player)
-    return f'Age: {stats["age"]} | Country: {stats["country"]} | Position: {stats["position"]} | Shoots: {stats["shoots"]} | ID: {stats["id"]}'
+    return f'Team: {stats["team_code"]} • Number: {round(stats["number"])} • Position: {stats["position"]} • Shoots: {stats["shoots"]}'
+
+@callback(
+    Output(component_id='player-stats-2', component_property='children'),
+    Input(component_id='player-name-dropdown', component_property='value')
+)
+def set_player_stats(selected_player):
+    stats = get_player_card(selected_player)
+    return f'Age: {stats["age"]} • Country: {stats["country"]} • Height: {stats["height"]} • Weight: {stats["weight"]} • ID: {stats["id"]}'
 
 @callback(
     Output(component_id='player-name', component_property='children'),
