@@ -17,7 +17,15 @@ def read_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
 ranks_df = read_data('data/bq_results/202202_player_ranks.csv')
-ranks_df = ranks_df.sort_values(by="EV XG", ascending = False)
+
+def prepare_clean_ranks_table(df, sort_col = 'EV XG'):
+    df2 = df[['player_name', 'primary_position_name', 'gp', 'toi_m', 'EV XG', 'EV Offense', 'EV Defense','Finishing','Gx60', 'A1x60', 'PP','PK', 'Penalty']]
+    df2.rename(columns={'player_name': 'Player Name', 'primary_position_name': 'Position', 'toi_m': 'TOI (mins)', 'gp':'GP'}, inplace=True)
+    float_columns = df2.select_dtypes(include=['float64']).columns
+    df2[float_columns] = df2[float_columns].round(1)  # You can adjust the number of decimal places as needed
+    return df2.sort_values(by=f'{sort_col}', ascending = False)
+
+ranks_df2 = prepare_clean_ranks_table(ranks_df, "EV XG")
 
 # Create a card with given title and value
 def create_card(title):
@@ -145,7 +153,7 @@ app.layout = html.Div([
     html.Div([
         html.Img(
             id='player-image',
-            height="200px",
+            height="150px",
             style={
                 'margin-right': '10x',
                 'border-radius': '50%',  # Apply circular border
@@ -224,26 +232,8 @@ app.layout = html.Div([
         cards
     )),
 
-    html.Br(),
-
     dbc.Container(
         [
-            dbc.Row(
-                dbc.Col(
-                    dcc.RadioItems(
-                        options=[
-                            {'label': metric, 'value': metric}
-                            for metric in ['EV XG', 'EV Offense', 'EV Defense', 'Finishing']
-                        ],
-                        value='EV XG',
-                        inline=True,
-                        id='rank-metric-radio',
-                        labelStyle={'display': 'block', 'padding-right': '20px'},  # Add padding between radio options
-                    ),
-                    width=6,
-                ),
-                className="justify-content-center",  # Center the radio buttons horizontally
-            ),
             dbc.Row(
                 dbc.Col(
                     dcc.Graph(
@@ -261,64 +251,85 @@ app.layout = html.Div([
 
     html.Br(),
 
+    # Horizontal radio button group for "Position"
+    dbc.Row(
+        dbc.Col(
+            dcc.RadioItems(
+                id='position-radio',
+                options=[
+                    {'label': 'Forwards', 'value': 'Forwards'},
+                    {'label': 'Defenseman', 'value': 'Defenseman'},
+                    {'label': 'Goalie', 'value': 'Goalie'},
+                    {'label': 'Center', 'value': 'Center'},
+                    {'label': 'Right Wing', 'value': 'Right Wing'},
+                    {'label': 'Left Wing', 'value': 'Left Wing'},
+                ],
+                value='Forwards',
+                inline=True,
+                labelStyle={'display': 'block', 'margin-right': '20px'},  # Add margin-right for spacing
+                style={'margin-right': '20px', 'margin-left': '20px'},
+            ),
+            width=12,
+                ),
+        ),
+
+        html.Br(),
+
     # A new row that contains the table
-    dbc.Row([
+    dbc.Row(
         dbc.Col(
             dash_table.DataTable(
                 id='all-players-data-table',
-                data=ranks_df.to_dict('records'),
+                columns=[
+                    {'name': col, 'id': col}
+                    for col in ranks_df2.columns  # Automatically generate columns
+                ],
+                data=ranks_df2.to_dict('records'),
                 page_size=20,
                 style_table={
-                    'overflowX': 'auto'},
+                    'overflowX': 'auto',
+                    'padding-right': '20px',  # Add 20-pixel padding
+                    'padding-left': '20px',  # Add 20-pixel padding
+                },
                 style_header={
-                        'backgroundColor': '#343a40',  # Dark background color for headers
-                        'color': 'white',  # Text color for headers
-                    },
+                    'backgroundColor': '#343a40',
+                    'color': 'white',
+                    'fontWeight': 'bold',  # Make headers bold
+                },
                 style_cell={
-                        'backgroundColor': '#343a40',  # Dark background color for cells
-                        'color': 'white',  # Text color for cells
-                        'textAlign': 'center',
-                    },
+                    'backgroundColor': '#343a40',
+                    'color': 'white',
+                    'textAlign': 'center',
+                },
                 style_data_conditional=[
                     {
-                    'if': {'row_index': 'odd'},  # Style for odd rows
-                    'backgroundColor': '#444d56',  # Darker background color
-                        },]
+                        'if': {'row_index': 'odd'},
+                        'backgroundColor': '#444d56',
+                    }
+                ],
+                # Enable sorting
+                sort_action='native',  # Use built-in sorting functionality
+                sort_mode='multi',  # Allow multi-column sorting
             ),
             width=12
         ),
-    ]),
+
+    ),
+
 ])
 
-# Callback to update the metric bar chart
+# Callback to update the DataTable based on selected position
 @app.callback(
-    Output(component_id='metric-bar-chart', component_property='figure'),
-    Input(component_id='rank-metric-radio', component_property='value'),
+    Output('all-players-data-table', 'data'),
+    Input('position-radio', 'value')
 )
-def update_fig(metric):
-    forwards = ranks_df[ranks_df['primary_position_type'] == 'Forward']
-    fig = px.bar(
-        forwards.sort_values(by=metric, ascending=False),
-        x='player_name',
-        y=metric,
-       # color="primary_position_name",
-        barmode='stack'
-    )
-
-    # Dark mode-friendly color scheme
-    fig.update_layout(
-        plot_bgcolor='rgba(0, 0, 0, 0)',  # Set plot background color to transparent
-        paper_bgcolor='rgba(0, 0, 0, 0)', # Set plot paper color to transparent
-        font=dict(color=colors['text']),  # Set text color
-        xaxis=dict(linecolor=colors['text']),  # Set x-axis line color
-        yaxis=dict(linecolor=colors['text']),  # Set y-axis line color
-        xaxis_title="Players",
-        yaxis_title=metric,
-        title_text=f"Metric: {metric}",
-        title_font=dict(color=colors['title'], size=16),  # Set title text color and size
-    )
-
-    return fig
+def update_table(selected_position):
+    if selected_position == 'Forwards':
+        # Map "Forward" to "Center," "Left Wing," and "Right Wing"
+        filtered_df = ranks_df2[ranks_df2['Position'].isin(['Center', 'Left Wing', 'Right Wing'])]
+    else:
+        filtered_df = ranks_df2[ranks_df2['Position'] == selected_position]
+    return filtered_df.to_dict('records')
 
 @callback(
     Output(component_id='ev-xg-ring-progress-value', component_property='children'),
