@@ -3,6 +3,7 @@ from dash import Dash, html, dash_table, dcc, callback, Output, Input
 import pandas as pd
 import plotly.express as px
 import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 #import plotly.graph_objects as go
 from datetime import date, datetime
 
@@ -31,6 +32,13 @@ def create_card(title):
         )
     , width = 2)
     return card
+
+def create_stat_ring(title):
+    return dbc.Col(
+        html.Center(
+        id = f"{title.lower().replace(' ', '-')}-ring-progress-value",
+        )
+    )
 
 # Calculate age
 def calculate_age(born):
@@ -72,7 +80,7 @@ def get_player_stats(player_name):
     }
     # round to 2 decimal places
     for key, value in stats.items():
-        stats[key] = round(value, 2)
+        stats[key] = round(value, 1)
 
     return stats
 
@@ -96,22 +104,20 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY
 # Player stat cards
 cards = html.Div([
     dbc.Row([
-        create_card("EV XG"),
-        create_card("EV Offense"),
-        create_card("EV Defense"),
-        create_card("Finishing"),
-        create_card("Gx60"),
+        create_stat_ring("EV XG"),
+        create_stat_ring("EV Offense"),
+        create_stat_ring("EV Defense"),
+        create_stat_ring("Finishing"),
+        create_stat_ring("Gx60"),
 
-    ],
-    className="cards justify-content-center",
+    ]
     ),
     dbc.Row([
-        create_card("A1x60"),
-        create_card("PP"),
-        create_card("PK"),
-        create_card("Penalty"),
-    ],
-    className="cards justify-content-center",
+        create_stat_ring("A1x60"),
+        create_stat_ring("PP"),
+        create_stat_ring("PK"),
+        create_stat_ring("Penalty"),
+    ]
     ),
 ])
 
@@ -119,7 +125,7 @@ cards = html.Div([
 app.layout = html.Div([
     dbc.Navbar(
         dbc.Container([
-            html.Img(src='data/images/avatar.jpg', height="40px"),
+            html.Img(src=app.get_asset_url('avatar.jpg'), height="40px"),
             dbc.NavbarBrand("NHL App", href="/"),
             dbc.Nav(
                 [
@@ -152,7 +158,7 @@ app.layout = html.Div([
             html.H1(
                 id='player-name',
                 style={
-                    'textAlign': 'lef',
+                    'textAlign': 'left',
                     'color': colors['title'],
                     'display': 'inline',
                     'font-weight': 'bold',  # Make the font bold
@@ -193,7 +199,6 @@ app.layout = html.Div([
                     clearable=False
                 )],
             ),
-            width='4'
         ), # column
         dbc.Col(
             html.Div([
@@ -208,7 +213,6 @@ app.layout = html.Div([
                     style={'color': '#000000'}
                 )],
             ),
-            width='4'
         ), # column
     ], justify='center'), # row
 
@@ -284,7 +288,6 @@ app.layout = html.Div([
             width=12
         ),
     ]),
-
 ])
 
 # Callback to update the metric bar chart
@@ -318,22 +321,65 @@ def update_fig(metric):
     return fig
 
 @callback(
-    Output(component_id='ev-xg-card-value', component_property='children'),
-    Output(component_id='ev-offense-card-value', component_property='children'),
-    Output(component_id='ev-defense-card-value', component_property='children'),
-    Output(component_id='finishing-card-value', component_property='children'),
-    Output(component_id='gx60-card-value', component_property='children'),
-    Output(component_id='a1x60-card-value', component_property='children'),
-    Output(component_id='pp-card-value', component_property='children'),
-    Output(component_id='pk-card-value', component_property='children'),
-    Output(component_id='penalty-card-value', component_property='children'),
+    Output(component_id='ev-xg-ring-progress-value', component_property='children'),
+    Output(component_id='ev-offense-ring-progress-value', component_property='children'),
+    Output(component_id='ev-defense-ring-progress-value', component_property='children'),
+    Output(component_id='finishing-ring-progress-value', component_property='children'),
+    Output(component_id='gx60-ring-progress-value', component_property='children'),
+    Output(component_id='a1x60-ring-progress-value', component_property='children'),
+    Output(component_id='pp-ring-progress-value', component_property='children'),
+    Output(component_id='pk-ring-progress-value', component_property='children'),
+    Output(component_id='penalty-ring-progress-value', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_cards(player_name):
+def update_player_stat_rings(player_name):
     stats = get_player_stats(player_name)
 
-    # return each stat as separate values
-    return stats['ev_xg'], stats['ev_offense'], stats['ev_defense'], stats['finishing'], stats['gx60'], stats['a1x60'], stats['pp'], stats['pk'], stats['penalty']
+    # Create a mapping of stat display names to their corresponding column names
+    stats_mapping = {
+        'ev_xg': 'EV XG',
+        'ev_offense': 'EV Offense',
+        'ev_defense': 'EV Defense',
+        'finishing': 'Finishing',
+        'gx60': 'Gx60',
+        'a1x60': 'A1x60',
+        'pp': 'PP',
+        'pk': 'PK',
+        'penalty': 'Penalty'
+    }
+
+
+    stats_rings = []
+
+    for column_name, display_name in stats_mapping.items():
+        # Conditionally set the ring color based on the stat value
+        if stats[column_name] > 50:
+            color = '#7FDBFF'
+        elif stats[column_name] > 30:
+            color = 'yellow'
+        else:
+            color = 'red'
+
+        # Build the ring progress component for each stat
+        stats_rings.append(dmc.RingProgress(
+            size=120,
+            thickness=8,
+            sections = [{'value': stats[column_name], 'color': color}],
+            roundCaps=True,
+            rootColor='rgba(0, 0, 0, 0)',
+            label = dmc.Stack(
+                children=[
+                    dmc.Text(display_name, size='xs'),
+                    dmc.Text(stats[column_name], size=30, weight='700', color=color),
+                ],
+                align='center',
+                spacing=1,
+                style={'height': 70},
+            )
+        ))
+    # The size of this list must correspond to the number of outputs in the callback
+    # The order must also match the order of the outputs
+    return stats_rings
 
 @callback(
     Output(component_id='player-stats-1', component_property='children'),
