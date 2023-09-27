@@ -20,12 +20,14 @@ ranks_df = ranks_df.sort_values(by="EV XG", ascending = False)
 
 # Create a card with given title and value
 def create_card(title):
+    # Calculate the color based on the value (0 to 100)
     card = dbc.Col(
         dbc.Card(
             dbc.CardBody([
                 html.H2("Default", className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-value"),
                 html.H4(title, className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-title"),
-            ])
+            ]),
+            #style={'background-color': 'blue'}  # Set background color dynamically
         )
     , width = 2)
     return card
@@ -117,7 +119,7 @@ cards = html.Div([
 app.layout = html.Div([
     dbc.Navbar(
         dbc.Container([
-            html.Img(src='dashapp/images/avatar.jpg', height="40px"),  # Add this line to insert the image
+            html.Img(src='data/images/avatar.jpg', height="40px"),
             dbc.NavbarBrand("NHL App", href="/"),
             dbc.Nav(
                 [
@@ -220,43 +222,42 @@ app.layout = html.Div([
 
     html.Br(),
 
-    dbc.Row([
-        # Plot for the ice rink
-        dbc.Col(
-            html.Div([
-                dcc.Graph(
-                    figure={},
-                    id='rink',
-                    style={'height': '700px'}
+    dbc.Container(
+        [
+            dbc.Row(
+                dbc.Col(
+                    dcc.RadioItems(
+                        options=[
+                            {'label': metric, 'value': metric}
+                            for metric in ['EV XG', 'EV Offense', 'EV Defense', 'Finishing']
+                        ],
+                        value='EV XG',
+                        inline=True,
+                        id='rank-metric-radio',
+                        labelStyle={'display': 'block', 'padding-right': '20px'},  # Add padding between radio options
+                    ),
+                    width=6,
                 ),
-            ]),
-            width=6
-        ),
-
-        dbc.Col(
-            html.Div([
-                dcc.RadioItems(
-                    options=[
-                        {'label': metric, 'value': metric} for metric in ['EV XG', 'EV Offense', 'EV Defense', 'Finishing']
-                    ],
-                    value='EV XG',
-                    inline=True,
-                    id='rank-metric-radio',
-                    labelStyle={'display': 'block', 'padding-right': '20px'}  # Add padding between radio options
+                className="justify-content-center",  # Center the radio buttons horizontally
+            ),
+            dbc.Row(
+                dbc.Col(
+                    dcc.Graph(
+                        figure={},
+                        id='rink',
+                        style={'height': '700px'}
+                    ),
                 ),
-                dcc.Graph(
-                    figure={},
-                    id='metric-bar-chart',
-                    style={'height': '650px'}
-                ),
-            ]),
-            width=6
-        ),
-    ]),
+                className="justify-content-center",  # Center the graph horizontally
+            ),
+        ],
+        fluid=True,  # Use a fluid container to fill the entire page width
+        style={'padding': '20px'},  # Add padding from the edges of the page
+    ),
 
     html.Br(),
 
-    # A new row that contains the scatterplot from plot_rink
+    # A new row that contains the table
     dbc.Row([
         dbc.Col(
             dash_table.DataTable(
