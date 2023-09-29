@@ -100,7 +100,7 @@ def set_player_dropdown_options():
 # Set colors
 colors = {
     'background': '#111111',
-    'text': '#7FDBFF',
+    'text': 'f6c1b2',
     'title': '#ffffff'
 }
 
@@ -133,18 +133,19 @@ cards = html.Div([
 app.layout = html.Div([
     dbc.Navbar(
         dbc.Container([
-            html.Img(src=app.get_asset_url('avatar.jpg'), height="40px"),
-            dbc.NavbarBrand("NHL App", href="/"),
+            dbc.Col(html.Img(src=app.get_asset_url('avatar.jpg'), height="40px"), width="auto"),
+            dbc.Col(html.H5("NHL App", style={'text-align': 'center', 'margin': '1px'}), width="auto"),
             dbc.DropdownMenu(
                 label="Menu",
                 children=[
                     dbc.DropdownMenuItem("Home", href="/"),
                     dbc.DropdownMenuItem("About", href="/about"),
                 ],
+                style={'text-align': 'right', 'margin-right': '0'}
             ),
         ]),
         color="dark",
-        dark=True
+        dark=True,
     ),
 
     # Create a div for the header with an image, player name, and subtitles
@@ -152,7 +153,7 @@ app.layout = html.Div([
         html.Div(
             html.Img(
                 id='player-image',
-                height="150px",
+                height="140px",
                 style={
                     'border-radius': '50%',  # Apply circular border
                     'background': '#ffffff',
@@ -160,8 +161,12 @@ app.layout = html.Div([
                 }
             ),
             style={
+                'display': 'flex',
                 'flex': '0 0 auto',  # Don't allow image to grow or shrink
+                'align-items': 'center',  # Center vertically
+                'justify-content': 'center',  # Center horizontally
                 'margin': '5px',  # Add margin for spacing
+                'height': '150px',  # Specify a fixed height for the container
             }
         ),
         html.Div([
@@ -179,8 +184,7 @@ app.layout = html.Div([
                     id='player-stats-1',
                     style={
                         'color': colors['text'],
-                    }
-                ),
+                    }),
             ], style={'margin-left': '5px'}),  # Add margin for spacing
         ], style={'flex': '1', 'align-self': 'center'}),  # Allow text to grow, align to center
     ], style={
@@ -296,32 +300,31 @@ app.layout = html.Div([
                 id='all-players-data-table',
                 columns=[
                     {'name': col, 'id': col}
-                    for col in ranks_df2.columns  # Automatically generate columns
+                    for col in ranks_df2.columns
                 ],
                 data=ranks_df2.to_dict('records'),
                 page_size=20,
                 style_table={
                     'overflowX': 'auto',
-                    'padding-right': '20px',  # Add 20-pixel padding
-                    'padding-left': '20px',  # Add 20-pixel padding
                 },
                 style_header={
                     'backgroundColor': '#343a40',
                     'color': 'white',
-                    'fontWeight': 'bold',  # Make headers bold
+                    'fontWeight': 'bold',
                 },
                 style_cell={
                     'backgroundColor': '#343a40',
                     'color': 'white',
-                    'textAlign': 'center',
+                    'textAlign': 'left',
+                    'font-family': 'Calibri, sans-serif',
                 },
                 style_data_conditional=[
                     {
                         'if': {'row_index': 'odd'},
                         'backgroundColor': '#444d56',
-                    }
+                    },
                 ],
-                # Enable sorting
+                                # Enable sorting
                 sort_action='native',  # Use built-in sorting functionality
                 sort_mode='multi',  # Allow multi-column sorting
             ),
@@ -386,8 +389,10 @@ def update_player_stat_rings(player_name):
 
     for column_name, display_name in stats_mapping.items():
         # Conditionally set the ring color based on the stat value
-        if stats[column_name] > 50:
-            color = '#7FDBFF'
+        if stats[column_name] > 80:
+            color = 'green'
+        elif stats[column_name] > 50:
+            color = '#9ACD32'
         elif stats[column_name] > 30:
             color = 'yellow'
         else:
