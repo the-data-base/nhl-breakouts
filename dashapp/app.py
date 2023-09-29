@@ -7,6 +7,7 @@ import dash_mantine_components as dmc
 #import plotly.graph_objects as go
 from datetime import date, datetime
 
+
 # Modules
 from dashapp.utils.extract.extract import get_player_headshot
 from dashapp.utils.transform.transform import plot_comparisons
@@ -36,9 +37,8 @@ def create_card(title):
                 html.H2("Default", className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-value"),
                 html.H4(title, className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-title"),
             ]),
-            #style={'background-color': 'blue'}  # Set background color dynamically
         )
-    , width = 2)
+    , width={"size": 4})
     return card
 
 def create_stat_ring(title):
@@ -84,7 +84,7 @@ def get_player_stats(player_name):
         'pp': player_df['PP'].values[0],
         'pk': player_df['PK'].values[0],
         'penalty': player_df['Penalty'].values[0],
-
+        'toi': player_df['TOI'].values[0],
     }
     # round to 2 decimal places
     for key, value in stats.items():
@@ -104,8 +104,11 @@ colors = {
     'title': '#ffffff'
 }
 
+# Calculate the minimum and maximum TOI values from your DataFrame
+min_toi_value = ranks_df2['TOI (mins)'].min()
+max_toi_value = ranks_df2['TOI (mins)'].max()
+
 # Initialize the app
-#app = Dash(__name__, external_stylesheets=[dbc.themes.SPACELAB])
 app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY theme for dark mode
 
 
@@ -117,16 +120,13 @@ cards = html.Div([
         create_stat_ring("EV Defense"),
         create_stat_ring("Finishing"),
         create_stat_ring("Gx60"),
-
-    ]
-    ),
-    dbc.Row([
         create_stat_ring("A1x60"),
         create_stat_ring("PP"),
         create_stat_ring("PK"),
         create_stat_ring("Penalty"),
-    ]
-    ),
+    ],
+    style={'margin-right': '1px'}),  # Adjust the margin-right value to reduce spacing
+
 ])
 
 # Define app layout
@@ -135,64 +135,60 @@ app.layout = html.Div([
         dbc.Container([
             html.Img(src=app.get_asset_url('avatar.jpg'), height="40px"),
             dbc.NavbarBrand("NHL App", href="/"),
-            dbc.Nav(
-                [
-                    dbc.NavItem(dbc.NavLink("Home", href="/")),
-                    dbc.NavItem(dbc.NavLink("About", href="/about")),
+            dbc.DropdownMenu(
+                label="Menu",
+                children=[
+                    dbc.DropdownMenuItem("Home", href="/"),
+                    dbc.DropdownMenuItem("About", href="/about"),
                 ],
-                navbar=True,
             ),
         ]),
         color="dark",
-        dark=True,
+        dark=True
     ),
 
-    html.Br(),
-
-   # Create a div for the header with an image, player name, and subtitles
+    # Create a div for the header with an image, player name, and subtitles
     html.Div([
-        html.Img(
-            id='player-image',
-            height="150px",
+        html.Div(
+            html.Img(
+                id='player-image',
+                height="150px",
+                style={
+                    'border-radius': '50%',  # Apply circular border
+                    'background': '#ffffff',
+                    'border': '3px solid #000000',  # Border color
+                }
+            ),
             style={
-                'margin-right': '10x',
-                'border-radius': '50%',  # Apply circular border
-                'border': '5px solid #000000',  # Border color
-                #'background-image': '/assets/images/test_logo.png',
-                #'box-shadow': '0px 0px 8px 0px #000000'  # Add shadow effect
+                'flex': '0 0 auto',  # Don't allow image to grow or shrink
+                'margin': '5px',  # Add margin for spacing
             }
         ),
         html.Div([
             html.H1(
                 id='player-name',
                 style={
-                    'textAlign': 'left',
                     'color': colors['title'],
-                    'display': 'inline',
                     'font-weight': 'bold',  # Make the font bold
-                    'margin-left': '20px',  # Add margin to the right for spacing
+                    'margin-bottom': '5px',  # Add margin for spacing
+                    'text-align': 'center',  # Center the H1 title horizontally
                 }
             ),
-            html.H6(
-                id='player-stats-1',
-                style={
-                    'textAlign': 'left',
-                    'color': colors['text'],
-                    'margin-left': '20px',  # Add margin to the right for spacing
-                }
-            ),
-           html.H6(
-                id='player-stats-2',
-                style={
-                    'textAlign': 'left',
-                    'color': colors['text'],
-                    'margin-left': '20px',  # Add margin to the right for spacing
-                }
-            ),
-        ]),
-    ], style={'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}),
-
-    html.Br(),
+            html.Div([
+                html.H6(
+                    id='player-stats-1',
+                    style={
+                        'color': colors['text'],
+                    }
+                ),
+            ], style={'margin-left': '5px'}),  # Add margin for spacing
+        ], style={'flex': '1', 'align-self': 'center'}),  # Allow text to grow, align to center
+    ], style={
+        'display': 'flex',
+        'flex-direction': 'column',
+        'align-items': 'center',
+        'justify-content': 'center',
+    }),
 
     # New row for a searchable dropdown menu containing player names
     # Align the dropdown menu to the center
@@ -222,56 +218,74 @@ app.layout = html.Div([
                 )],
             ),
         ), # column
-    ], justify='center'), # row
+    ],
+    justify='center',
+    style={'margin': '1px'}  # Add right margin to the position filter
+    ), # row
 
     html.Br(),
 
 
     # Cards for player-specific metrics
-    html.Div(dbc.Container(
-        cards
-    )),
+    html.Div(dbc.Container(cards)),
 
-    dbc.Container(
-        [
-            dbc.Row(
-                dbc.Col(
-                    dcc.Graph(
-                        figure={},
-                        id='rink',
-                        style={'height': '700px'}
-                    ),
+    # Rink image
+    dbc.Container([
+        dbc.Row(
+            dbc.Col(
+                dcc.Graph(
+                    figure={},
+                    id='rink',
+                    style={'height': '100%', 'max-width': '100%', 'margin': '0 auto'},
                 ),
-                className="justify-content-center",  # Center the graph horizontally
             ),
-        ],
-        fluid=True,  # Use a fluid container to fill the entire page width
-        style={'padding': '20px'},  # Add padding from the edges of the page
+            className="justify-content-center",
+        ),],
+        fluid=True,
+        style={'width': '100%'},
     ),
 
-    html.Br(),
-
     # Horizontal radio button group for "Position"
-    dbc.Row(
-        dbc.Col(
-            dcc.RadioItems(
-                id='position-radio',
-                options=[
-                    {'label': 'Forwards', 'value': 'Forwards'},
-                    {'label': 'Defenseman', 'value': 'Defenseman'},
-                    {'label': 'Goalie', 'value': 'Goalie'},
-                    {'label': 'Center', 'value': 'Center'},
-                    {'label': 'Right Wing', 'value': 'Right Wing'},
-                    {'label': 'Left Wing', 'value': 'Left Wing'},
-                ],
-                value='Forwards',
-                inline=True,
-                labelStyle={'display': 'block', 'margin-right': '20px'},  # Add margin-right for spacing
-                style={'margin-right': '20px', 'margin-left': '20px'},
-            ),
-            width=12,
+    dbc.Row([
+            dbc.Col(
+                    html.Div([
+                        html.Label('Position:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
+                        dcc.Dropdown(
+                            id='position-dropdown',  # Update the ID
+                            options=[
+                                {'label': 'All', 'value': 'All'},  # Add an "All" option
+                                {'label': 'Forwards', 'value': 'Forwards'},
+                                {'label': 'Defenseman', 'value': 'Defenseman'},
+                                {'label': 'Goalie', 'value': 'Goalie'},
+                                {'label': 'Center', 'value': 'Center'},
+                                {'label': 'Right Wing', 'value': 'Right Wing'},
+                                {'label': 'Left Wing', 'value': 'Left Wing'},
+                            ],
+                            value='All',  # Set the default value to "All"
+                            clearable=False,
+                            style={'color': '#000000'}
+                        )],
+
                 ),
-        ),
+            ), # column
+            dbc.Col(
+            html.Div([
+                    html.Label('Minimum TOI (mins):', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
+                    dcc.RangeSlider(
+                        id='toi-slider',
+                        min=0,  # Set the minimum value
+                        max=1000,  # Set the maximum value
+                        step=50,  # Set the step value
+                        marks={i: str(i) for i in range(0, 1001, 250)},  # Add marks for each 100-unit interval
+                        value=[min_toi_value],  # Set the initial value to cover the entire range
+                        tooltip={"placement": "bottom"},  # Show tooltips below the slider
+                    ),
+                ]),
+                ), # column
+            ],
+            justify='center',
+            style={'margin': '1px'}  # Add right margin to the position filter
+            ),
 
         html.Br(),
 
@@ -318,18 +332,26 @@ app.layout = html.Div([
 
 ])
 
-# Callback to update the DataTable based on selected position
+# Callback to update the DataTable based on selected position and TOI range
 @app.callback(
     Output('all-players-data-table', 'data'),
-    Input('position-radio', 'value')
+    Input('position-dropdown', 'value'),
+    Input('toi-slider', 'value')  # Updated slider input
 )
-def update_table(selected_position):
-    if selected_position == 'Forwards':
-        # Map "Forward" to "Center," "Left Wing," and "Right Wing"
-        filtered_df = ranks_df2[ranks_df2['Position'].isin(['Center', 'Left Wing', 'Right Wing'])]
+def update_table(selected_position, toi_range):
+    min_toi = toi_range[0]  # Get the selected TOI range (use [0] to get the minimum value)
+    if selected_position == 'All':
+        # Show all positions within the TOI range
+        filtered_df = ranks_df2[(ranks_df2['TOI (mins)'] >= min_toi)]
+    elif selected_position == 'Forwards':
+        # Map "Forward" to "Center," "Left Wing," and "Right Wing" within the TOI range
+        filtered_df = ranks_df2[(ranks_df2['Position'].isin(['Center', 'Left Wing', 'Right Wing'])) &
+                                (ranks_df2['TOI (mins)'] >= min_toi)]
     else:
-        filtered_df = ranks_df2[ranks_df2['Position'] == selected_position]
+        filtered_df = ranks_df2[(ranks_df2['Position'] == selected_position) &
+                                (ranks_df2['TOI (mins)'] >= min_toi)]
     return filtered_df.to_dict('records')
+
 
 @callback(
     Output(component_id='ev-xg-ring-progress-value', component_property='children'),
@@ -356,7 +378,7 @@ def update_player_stat_rings(player_name):
         'a1x60': 'A1x60',
         'pp': 'PP',
         'pk': 'PK',
-        'penalty': 'Penalty'
+        'penalty': 'Penalty',
     }
 
 
@@ -373,19 +395,19 @@ def update_player_stat_rings(player_name):
 
         # Build the ring progress component for each stat
         stats_rings.append(dmc.RingProgress(
-            size=120,
-            thickness=8,
+            size=100,
+            thickness=4,
             sections = [{'value': stats[column_name], 'color': color}],
             roundCaps=True,
             rootColor='rgba(0, 0, 0, 0)',
             label = dmc.Stack(
                 children=[
                     dmc.Text(display_name, size='xs'),
-                    dmc.Text(stats[column_name], size=30, weight='700', color=color),
+                    dmc.Text(stats[column_name], size=20, weight='500', color=color),
                 ],
                 align='center',
-                spacing=1,
-                style={'height': 70},
+                spacing=0,
+                style={'height': 50},
             )
         ))
     # The size of this list must correspond to the number of outputs in the callback
@@ -398,15 +420,7 @@ def update_player_stat_rings(player_name):
 )
 def set_player_stats(selected_player):
     stats = get_player_card(selected_player)
-    return f'Team: {stats["team_code"]} • Number: {round(stats["number"])} • Position: {stats["position"]} • Shoots: {stats["shoots"]}'
-
-@callback(
-    Output(component_id='player-stats-2', component_property='children'),
-    Input(component_id='player-name-dropdown', component_property='value')
-)
-def set_player_stats(selected_player):
-    stats = get_player_card(selected_player)
-    return f'Age: {stats["age"]} • Country: {stats["country"]} • Height: {stats["height"]} • Weight: {stats["weight"]} • ID: {stats["id"]}'
+    return f'Age: {stats["age"]} • Team: {stats["team_name"]} • {stats["position"]} • Shoots: {stats["shoots"]}'
 
 @callback(
     Output(component_id='player-name', component_property='children'),
