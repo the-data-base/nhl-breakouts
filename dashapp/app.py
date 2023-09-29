@@ -1,36 +1,43 @@
-# Import packages
+#-------------------------------------------------
+#-1- Dependencies
+#-------------------------------------------------
+
+
+#-- Libraries
 from dash import Dash, html, dash_table, dcc, callback, Output, Input
 import pandas as pd
 import plotly.express as px
 import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
-#import plotly.graph_objects as go
 from datetime import date, datetime
 
-
-# Modules
+#-- Modules
 from dashapp.utils.extract.extract import get_player_headshot
 from dashapp.utils.transform.transform import plot_comparisons
 
-# Read data from local CSVs and create the initial DataFrame
-# TODO: dynamically read data from Cloud Storage
+#-------------------------------------------------
+#-2- Helper functions
+#-------------------------------------------------
+
+#-- Read csvs
 def read_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
-ranks_df = read_data('data/bq_results/202202_player_ranks.csv')
-
+#-- Prepare the player ranks dataframe (all, by season, and for the current season)
 def prepare_clean_ranks_table(df, sort_col = 'EV XG'):
-    df2 = df[['player_name', 'primary_position_name', 'gp', 'toi_m', 'EV XG', 'EV Offense', 'EV Defense','Finishing','Gx60', 'A1x60', 'PP','PK', 'Penalty']]
-    df2.rename(columns={'player_name': 'Player Name', 'primary_position_name': 'Position', 'toi_m': 'TOI (mins)', 'gp':'GP'}, inplace=True)
+    df2 = df[['player_name', 'primary_position_name', 'season', 'season_window', 'gp', 'toi_m', 'EV XG', 'EV Offense', 'EV Defense','Finishing','Gx60', 'A1x60', 'PP','PK', 'Penalty']]
+    df2 = df2.rename(columns={'player_name': 'Player Name', 'primary_position_name': 'Position', 'season': 'Season','season_window': 'Season Window',  'toi_m': 'TOI (mins)', 'gp':'GP'})
     float_columns = df2.select_dtypes(include=['float64']).columns
-    df2[float_columns] = df2[float_columns].round(1)  # You can adjust the number of decimal places as needed
+    df2[float_columns] = df2[float_columns].round(1)
     return df2.sort_values(by=f'{sort_col}', ascending = False)
 
-ranks_df2 = prepare_clean_ranks_table(ranks_df, "EV XG")
+def season_window_partitions(df, sort_col = 'EV XG'):
+    ranks_df1 = df[df['Season Window'] == 'Last 3 seasons'].sort_values(by=f'{sort_col}', ascending = False)
+    ranks_df2 = df[df['Season Window'] == '1 season'].sort_values(by=f'{sort_col}', ascending = False)
+    return ranks_df1, ranks_df2
 
-# Create a card with given title and value
+#-- Create a card with given title and value
 def create_card(title):
-    # Calculate the color based on the value (0 to 100)
     card = dbc.Col(
         dbc.Card(
             dbc.CardBody([
@@ -41,21 +48,21 @@ def create_card(title):
     , width={"size": 4})
     return card
 
+#-- Create stat ring around card
 def create_stat_ring(title):
     return dbc.Col(
         html.Center(
         id = f"{title.lower().replace(' ', '-')}-ring-progress-value",
-        )
-    )
+        ))
 
-# Calculate age
+#-- Calculate age
 def calculate_age(born):
     born_dt = datetime.strptime(born, "%Y-%m-%d")
     today = date.today()
     return today.year - born_dt.year - ((today.month, today.day) < (born_dt.month, born_dt.day))
 
-def get_player_card(player_name):
-    df = ranks_df
+#-- Extract information out of player attributes out of ranks df and store as a dictionary for player cards downstream
+def get_player_card(player_name, df):
     player_df = df[df['player_name'] == player_name]
     return {
         'id': player_df['player_id'].values[0],
@@ -71,8 +78,8 @@ def get_player_card(player_name):
         'team_name': player_df['current_team_name'].values[0]
     }
 
-def get_player_stats(player_name):
-    df = ranks_df
+#-- Extract information out of player metrics out of ranks df and store as a dictionary for player cards downstream
+def get_player_stats(player_name, df):
     player_df = df[df['player_name'] == player_name]
     stats = {
         'ev_xg': player_df['EV XG'].values[0],
@@ -92,27 +99,38 @@ def get_player_stats(player_name):
 
     return stats
 
-
-def set_player_dropdown_options():
-    df = ranks_df
+#-- Get player attributes from ranks_df
+def set_player_dropdown_options(df):
     return [{'label': player, 'value': player} for player in df['player_name'].unique()]
 
-# Set colors
+#-------------------------------------------------
+#-3- Pre-load variables
+#-------------------------------------------------
+
+#-- Player ranks dataframe
+ranks_df_raw = read_data('data/bq_results/202202_player_ranks.csv')
+ranks_df = prepare_clean_ranks_table(ranks_df_raw, "EV XG")
+ranks_3y_df, ranks_1y_df = season_window_partitions(ranks_df, "EV XG")
+
+#-- Set colors
 colors = {
     'background': '#111111',
     'text': 'f6c1b2',
     'title': '#ffffff'
-}
+    }
 
 # Calculate the minimum and maximum TOI values from your DataFrame
-min_toi_value = ranks_df2['TOI (mins)'].min()
-max_toi_value = ranks_df2['TOI (mins)'].max()
+min_toi_value = ranks_df['TOI (mins)'].min()
+max_toi_value = ranks_df['TOI (mins)'].max()
 
-# Initialize the app
+#-------------------------------------------------
+#-4- App
+#-------------------------------------------------
+
+#-- Initialize the app
 app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY theme for dark mode
 
-
-# Player stat cards
+#-- Player stat cards
 cards = html.Div([
     dbc.Row([
         create_stat_ring("EV XG"),
@@ -129,7 +147,7 @@ cards = html.Div([
 
 ])
 
-# Define app layout
+#-- Define app layout
 app.layout = html.Div([
     dbc.Navbar(
         dbc.Container([
@@ -195,19 +213,20 @@ app.layout = html.Div([
     }),
 
     # New row for a searchable dropdown menu containing player names
-    # Align the dropdown menu to the center
     dbc.Row([
+        # dropdown: player-name
         dbc.Col(
             html.Div([
                 html.Label('Player:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
                 dcc.Dropdown(
                     id='player-name-dropdown',
-                    options=set_player_dropdown_options(),
+                    options=set_player_dropdown_options(ranks_df_raw),
                     value='Connor McDavid',
                     clearable=False
                 )],
             ),
-        ), # column
+        ),
+        # dropdown: season-year
         dbc.Col(
             html.Div([
                 html.Label('Season:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
@@ -251,47 +270,64 @@ app.layout = html.Div([
 
     # Horizontal radio button group for "Position"
     dbc.Row([
-            dbc.Col(
-                    html.Div([
-                        html.Label('Position:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
-                        dcc.Dropdown(
-                            id='position-dropdown',  # Update the ID
-                            options=[
-                                {'label': 'All', 'value': 'All'},  # Add an "All" option
-                                {'label': 'Forwards', 'value': 'Forwards'},
-                                {'label': 'Defenseman', 'value': 'Defenseman'},
-                                {'label': 'Goalie', 'value': 'Goalie'},
-                                {'label': 'Center', 'value': 'Center'},
-                                {'label': 'Right Wing', 'value': 'Right Wing'},
-                                {'label': 'Left Wing', 'value': 'Left Wing'},
-                            ],
-                            value='All',  # Set the default value to "All"
-                            clearable=False,
-                            style={'color': '#000000'}
-                        )],
-
-                ),
-            ), # column
-            dbc.Col(
+        # dropdown: position
+        dbc.Col(
             html.Div([
-                    html.Label('Minimum TOI (mins):', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
-                    dcc.RangeSlider(
-                        id='toi-slider',
-                        min=0,  # Set the minimum value
-                        max=1000,  # Set the maximum value
-                        step=50,  # Set the step value
-                        marks={i: str(i) for i in range(0, 1001, 250)},  # Add marks for each 100-unit interval
-                        value=[min_toi_value],  # Set the initial value to cover the entire range
-                        tooltip={"placement": "bottom"},  # Show tooltips below the slider
-                    ),
-                ]),
-                ), # column
-            ],
-            justify='center',
-            style={'margin': '1px'}  # Add right margin to the position filter
+                html.Label('Seasons:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
+                dcc.Dropdown(
+                    id='season-breakdown-dropdown',  # Update the ID
+                    options=[
+                        {'label': 'Group last 3 seassons', 'value': 'Group'},
+                        {'label': 'Breakdown last 3 seasons', 'value': 'Breakdown'},
+                    ],
+                    value='Group',  # Set the default value to "All"
+                    clearable=False,
+                    style={'color': '#000000'}
+                )],
             ),
+        ),
+        # dropdown: position
+        dbc.Col(
+            html.Div([
+                html.Label('Position:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
+                dcc.Dropdown(
+                    id='position-dropdown',  # Update the ID
+                    options=[
+                        {'label': 'All', 'value': 'All'},  # Add an "All" option
+                        {'label': 'Forwards', 'value': 'Forwards'},
+                        {'label': 'Defenseman', 'value': 'Defenseman'},
+                        {'label': 'Goalie', 'value': 'Goalie'},
+                        {'label': 'Center', 'value': 'Center'},
+                        {'label': 'Right Wing', 'value': 'Right Wing'},
+                        {'label': 'Left Wing', 'value': 'Left Wing'},
+                    ],
+                    value='All',  # Set the default value to "All"
+                    clearable=False,
+                    style={'color': '#000000'}
+                )],
+            ),
+        )
+        ],
+        justify='center',
+        style={'margin': '1px'}  # Add right margin to the position filter
+        ),
 
-        html.Br(),
+    dbc.Row(
+        html.Div([
+                html.Label('Minimum TOI (mins):', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
+                dcc.RangeSlider(
+                    id='toi-slider',
+                    min=0,  # Set the minimum value
+                    max=1000,  # Set the maximum value
+                    step=50,  # Set the step value
+                    marks={i: str(i) for i in range(0, 1001, 250)},  # Add marks for each 100-unit interval
+                    value=[min_toi_value],  # Set the initial value to cover the entire range
+                    tooltip={"placement": "bottom"},  # Show tooltips below the slider
+                ),
+            ]),
+    ),
+
+    html.Br(),
 
     # A new row that contains the table
     dbc.Row(
@@ -300,9 +336,9 @@ app.layout = html.Div([
                 id='all-players-data-table',
                 columns=[
                     {'name': col, 'id': col}
-                    for col in ranks_df2.columns
+                    for col in ranks_3y_df.columns
                 ],
-                data=ranks_df2.to_dict('records'),
+                data=ranks_3y_df.to_dict('records'),
                 page_size=20,
                 style_table={
                     'overflowX': 'auto',
@@ -335,24 +371,31 @@ app.layout = html.Div([
 
 ])
 
-# Callback to update the DataTable based on selected position and TOI range
+# Callback to update the DataTable based on selected position, season breakdown, and TOI range
 @app.callback(
     Output('all-players-data-table', 'data'),
     Input('position-dropdown', 'value'),
-    Input('toi-slider', 'value')  # Updated slider input
+    Input('season-breakdown-dropdown', 'value'),
+    Input('toi-slider', 'value')
 )
-def update_table(selected_position, toi_range):
+def update_table(selected_position, selected_season, toi_range):
     min_toi = toi_range[0]  # Get the selected TOI range (use [0] to get the minimum value)
+
+    if selected_season == 'Group':
+        df = ranks_3y_df
+    elif selected_season == 'Breakdown':
+        df = ranks_1y_df
+
     if selected_position == 'All':
         # Show all positions within the TOI range
-        filtered_df = ranks_df2[(ranks_df2['TOI (mins)'] >= min_toi)]
+        filtered_df = df[(df['TOI (mins)'] >= min_toi)]
     elif selected_position == 'Forwards':
         # Map "Forward" to "Center," "Left Wing," and "Right Wing" within the TOI range
-        filtered_df = ranks_df2[(ranks_df2['Position'].isin(['Center', 'Left Wing', 'Right Wing'])) &
-                                (ranks_df2['TOI (mins)'] >= min_toi)]
+        filtered_df = df[(df['Position'].isin(['Center', 'Left Wing', 'Right Wing'])) &
+                            (df['TOI (mins)'] >= min_toi)]
     else:
-        filtered_df = ranks_df2[(ranks_df2['Position'] == selected_position) &
-                                (ranks_df2['TOI (mins)'] >= min_toi)]
+        filtered_df = df[(df['Position'] == selected_position) &
+                        (df['TOI (mins)'] >= min_toi)]
     return filtered_df.to_dict('records')
 
 
@@ -368,8 +411,8 @@ def update_table(selected_position, toi_range):
     Output(component_id='penalty-ring-progress-value', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def update_player_stat_rings(player_name):
-    stats = get_player_stats(player_name)
+def update_player_stat_rings(player_name, df = ranks_df_raw):
+    stats = get_player_stats(player_name, df)
 
     # Create a mapping of stat display names to their corresponding column names
     stats_mapping = {
@@ -423,15 +466,15 @@ def update_player_stat_rings(player_name):
     Output(component_id='player-stats-1', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_stats(selected_player):
-    stats = get_player_card(selected_player)
+def set_player_stats(selected_player, df = ranks_df_raw):
+    stats = get_player_card(selected_player, df)
     return f'Age: {stats["age"]} • Team: {stats["team_name"]} • {stats["position"]} • Shoots: {stats["shoots"]}'
 
 @callback(
     Output(component_id='player-name', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_name(selected_player):
+def set_player_name(selected_player, df = ranks_df_raw):
     return selected_player
 
 @callback(
@@ -446,8 +489,8 @@ def plot_rink(player_name):
     Output(component_id='player-image', component_property='src'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_headshot(player_name):
-    stats = get_player_card(player_name)
+def set_player_headshot(player_name, df = ranks_df_raw):
+    stats = get_player_card(player_name, df)
     return get_player_headshot(stats['id'])
 
 # Run the app
