@@ -248,7 +248,6 @@ app.layout = html.Div([
 
     html.Br(),
 
-
     # Cards for player-specific metrics
     html.Div(dbc.Container(cards)),
 
@@ -277,8 +276,8 @@ app.layout = html.Div([
                 dcc.Dropdown(
                     id='season-breakdown-dropdown',  # Update the ID
                     options=[
-                        {'label': 'Group last 3 seassons', 'value': 'Group'},
-                        {'label': 'Breakdown last 3 seasons', 'value': 'Breakdown'},
+                        {'label': 'Group last 3', 'value': 'Group'},
+                        {'label': 'Breakdown last 3', 'value': 'Breakdown'},
                     ],
                     value='Group',  # Set the default value to "All"
                     clearable=False,
@@ -311,6 +310,8 @@ app.layout = html.Div([
         justify='center',
         style={'margin': '1px'}  # Add right margin to the position filter
         ),
+
+    html.Br(),
 
     dbc.Row(
         html.Div([
