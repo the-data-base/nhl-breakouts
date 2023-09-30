@@ -253,6 +253,13 @@ team_image_mapping = {
     'WPG': 'WPG.png',
 }
 
+# Define custom CSS for the menu outline
+menu_outline_style = {
+    'border': '1px solid rgba(255, 255, 255, 0.5)',  # Light border
+    'border-radius': '4px',  # Rounded corners
+    'padding': '0px',  # Add padding for spacing
+}
+
 
 #-------------------------------------------------
 #-4- App
@@ -269,15 +276,33 @@ app.layout = html.Div([
     #-------------------------------------------------
     dbc.Navbar(
         dbc.Container([
-            dbc.Col(html.Img(src=app.get_asset_url('avatar.jpg'), height="40px"), width="auto"),
-            dbc.Col(html.H5("NHL App", style={'text-align': 'center', 'margin': '1px'}), width="auto"),
-            dbc.DropdownMenu(
-                label="Menu",
-                children=[
-                    dbc.DropdownMenuItem("Home", href="/"),
-                    dbc.DropdownMenuItem("About", href="/about"),
-                ],
-                style={'text-align': 'right', 'margin-right': '0'}
+            dbc.Row([
+                dbc.Col(
+                    html.Img(src=app.get_asset_url('avatar.jpg'), height="40px", alt="NHL Logo"),
+                    width="auto",
+                ),
+                dbc.Col(
+                    dbc.NavbarBrand("NHL App", style={'margin': '0', 'padding-left': '10px', 'font-family': 'Calibri', 'font-size': '24px'}),
+                    width="auto",
+                ),
+            ],
+            style={'text-align': 'left', 'margin-right': '0'}
+            ),
+            dbc.Row([
+                dbc.Col(
+                    dbc.DropdownMenu(
+                        label="Menu",
+                        children=[
+                            dbc.DropdownMenuItem("Home", href="/"),
+                            dbc.DropdownMenuItem("About", href="/about"),
+                        ],
+                        className="ml-auto",  # Align the dropdown menu to the right
+                    color = 'dark',
+                    style = {'padding-left':'10px', **menu_outline_style},
+                    ),
+                )
+            ],
+            style={'text-align': 'right', 'margin-right': '0'}
             ),
         ]),
         color="dark",

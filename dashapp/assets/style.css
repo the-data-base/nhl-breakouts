@@ -12,3 +12,9 @@
 #season-year-dropdown .VirtualizedSelectOption {
     color: black;
 }
+
+/* Apply Calibri font to the entire app */
+body, h1, h2, h3, h4, h5, h6, p, a {
+    font-family: 'Calibri', sans-serif !important;
+}
+
