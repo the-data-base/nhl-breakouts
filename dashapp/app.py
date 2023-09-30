@@ -11,6 +11,7 @@ import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
 from datetime import date, datetime
 import base64
+import numpy as np
 
 #-- Modules
 from dashapp.utils.extract.extract import get_player_headshot
@@ -46,8 +47,11 @@ def join_ranks_cap_data(df1, df2, left_key = "Player Name", right_key = "Player 
 
 #-- Function to partition out ranks_df by season & season window
 def season_window_partitions(df, sort_col = 'EV XG'):
+    df['Season'] = np.where(df['Season Window'] == 'Last 3 seasons', 'Last 3 Seasons', df['Season'])
     ranks_df1 = df[df['Season Window'] == 'Last 3 seasons'].sort_values(by=f'{sort_col}', ascending = False)
     ranks_df2 = df[df['Season Window'] == '1 season'].sort_values(by=f'{sort_col}', ascending = False)
+    ranks_df1 = ranks_df1.drop(columns=['Season Window'])
+    ranks_df2 = ranks_df2.drop(columns=['Season Window'])
     return ranks_df1, ranks_df2
 
 #-- Function to create a card with given title and value
@@ -181,9 +185,8 @@ cap_df_clean = prepare_clean_cap_table(cap_df_raw)
 ranks_df_raw = read_data('data/bq_results/202202_player_ranks.csv')
 ranks_cap_df_raw = join_ranks_cap_data(ranks_df_raw, cap_df_clean, left_key = 'player_name', right_key = 'Player Name')
 #... clean
-ranks_df_clean = prepare_clean_ranks_table(ranks_df_raw, "EV XG")
+ranks_df = prepare_clean_ranks_table(ranks_df_raw, "EV XG")
 #... final
-ranks_df = join_ranks_cap_data(ranks_df_clean, cap_df_clean, left_key = 'Player Name', right_key = 'Player Name')
 ranks_3y_df, ranks_1y_df = season_window_partitions(ranks_df, "EV XG")
 
 #-- Set colors
@@ -438,7 +441,7 @@ app.layout = html.Div([
     #-4.4- App: Exploring player ratings
     #-------------------------------------------------
 
-    html.H4("Explore Player Ratings", style={'text-align': 'center', 'color': '#ffffff'}),
+    html.H3("Explore Player Ratings", style={'text-align': 'center', 'color': '#ffffff'}),
 
     # Horizontal radio button group for "Position"
     dbc.Row([
@@ -558,6 +561,7 @@ def update_table(selected_position, selected_season, toi_range):
 
     if selected_season == 'Group':
         df = ranks_3y_df
+
     elif selected_season == 'Breakdown':
         df = ranks_1y_df
 
