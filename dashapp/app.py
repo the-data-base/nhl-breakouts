@@ -19,11 +19,11 @@ from dashapp.utils.transform.transform import plot_comparisons
 #-2- Helper functions
 #-------------------------------------------------
 
-#-- Read csvs
+#-- Function to read csvs
 def read_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
-#-- Prepare the player ranks dataframe (all, by season, and for the current season)
+#-- Function to prepare the player ranks dataframe (all)
 def prepare_clean_ranks_table(df, sort_col = 'EV XG'):
     df2 = df[['player_name', 'primary_position_name', 'season', 'season_window', 'gp', 'toi_m', 'EV XG', 'EV Offense', 'EV Defense','Finishing','Gx60', 'A1x60', 'PP','PK', 'Penalty']]
     df2 = df2.rename(columns={'player_name': 'Player Name', 'primary_position_name': 'Position', 'season': 'Season','season_window': 'Season Window',  'toi_m': 'TOI (mins)', 'gp':'GP'})
@@ -31,12 +31,13 @@ def prepare_clean_ranks_table(df, sort_col = 'EV XG'):
     df2[float_columns] = df2[float_columns].round(1)
     return df2.sort_values(by=f'{sort_col}', ascending = False)
 
+#-- Function to partition out ranks_df by season & season window
 def season_window_partitions(df, sort_col = 'EV XG'):
     ranks_df1 = df[df['Season Window'] == 'Last 3 seasons'].sort_values(by=f'{sort_col}', ascending = False)
     ranks_df2 = df[df['Season Window'] == '1 season'].sort_values(by=f'{sort_col}', ascending = False)
     return ranks_df1, ranks_df2
 
-#-- Create a card with given title and value
+#-- Function to create a card with given title and value
 def create_card(title):
     card = dbc.Col(
         dbc.Card(
@@ -44,24 +45,28 @@ def create_card(title):
                 html.H2("Default", className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-value"),
                 html.H4(title, className="text-nowrap", id=f"{title.lower().replace(' ', '-')}-card-title"),
             ]),
-        )
-    , width={"size": 4})
+            style={"margin": "0px", "padding": "0px"}  # Remove margin and padding
+        ),
+        width={"size": 4},
+
+    )
+
     return card
 
-#-- Create stat ring around card
+#-- Function to create stat ring around card
 def create_stat_ring(title):
     return dbc.Col(
         html.Center(
         id = f"{title.lower().replace(' ', '-')}-ring-progress-value",
         ))
 
-#-- Calculate age
+#-- Function to calculate age
 def calculate_age(born):
     born_dt = datetime.strptime(born, "%Y-%m-%d")
     today = date.today()
     return today.year - born_dt.year - ((today.month, today.day) < (born_dt.month, born_dt.day))
 
-#-- Extract information out of player attributes out of ranks df and store as a dictionary for player cards downstream
+#-- Function to get information out of player attributes out of ranks df and store as a dictionary for player cards downstream
 def get_player_card(player_name, df):
     player_df = df[df['player_name'] == player_name]
     return {
@@ -78,9 +83,9 @@ def get_player_card(player_name, df):
         'team_name': player_df['current_team_name'].values[0]
     }
 
-#-- Extract information out of player metrics out of ranks df and store as a dictionary for player cards downstream
+#-- Fcuntion to get information out of player metrics out of ranks df and store as a dictionary for player cards downstream
 def get_player_stats(player_name, df):
-    player_df = df[df['player_name'] == player_name]
+    player_df = df[df['Player Name'] == player_name]
     stats = {
         'ev_xg': player_df['EV XG'].values[0],
         'ev_offense': player_df['EV Offense'].values[0],
@@ -91,7 +96,6 @@ def get_player_stats(player_name, df):
         'pp': player_df['PP'].values[0],
         'pk': player_df['PK'].values[0],
         'penalty': player_df['Penalty'].values[0],
-        'toi': player_df['TOI'].values[0],
     }
     # round to 2 decimal places
     for key, value in stats.items():
@@ -99,9 +103,54 @@ def get_player_stats(player_name, df):
 
     return stats
 
-#-- Get player attributes from ranks_df
+#-- Function to get player attributes from ranks_df
 def set_player_dropdown_options(df):
     return [{'label': player, 'value': player} for player in df['player_name'].unique()]
+
+#-- Function to create a multi-line chart
+def create_metric_season_trend_viz(df, x_column='Season', y_columns=['EV Offense', 'EV Defense', 'Finishing'], y_range=[0, 100], player_name='Connor McDavid'):
+    df2 = df[df['Player Name'] == player_name].copy()
+    df2 = df2.sort_values(by='Season', ascending=True)
+    df2['Season'] = df2['Season'].astype(str)
+
+    # Create the figure object
+    fig = px.line(df2, x=x_column, y=y_columns)
+
+    # Define custom line colors for each trace (line)
+    line_colors = ['#2B4EFF', '#E75480', '#7630ff ']  # Purple, Blue, Magenta
+
+    # Trend line chart layout and style modifications
+    for i, color in enumerate(line_colors):
+        fig.update_traces(
+            selector=dict(name=y_columns[i]),  # Select the trace by name
+            line=dict(width=3, color=color),  # Set line width and color
+            marker=dict(size=8),  # Increase marker size
+            hovertemplate=f'<b>{y_columns[i]}:</b> %{{y:.2f}}%<extra></extra>',  # Format hover text with '%' at the end
+        )
+
+    # Trend line chart layout and style modifications
+    fig.update_traces(
+        line=dict(width=3),  # Increase line width
+        marker=dict(size=8),  # Increase marker size
+        hovertemplate='<b>%{y:.2f}%</b><extra></extra>',  # Format hover text with '%' at the end
+    )
+    fig.update_layout(
+        legend_title_text='Metrics',  # Change the legend title to "Metrics"
+        xaxis_title="Season",
+        yaxis_title="Rating",
+        font=dict(family="Calibri", size=12, color='#ffffff'),  # Customize font
+        paper_bgcolor="rgba(0,0,0,0)",  # Set background color to transparent (RGBA)
+        plot_bgcolor="rgba(0,0,0,0)",  # Set plot background color
+        hovermode="x",  # Display hover info for the nearest point along the x-axis
+        xaxis=dict(showgrid=False),  # Remove x-axis gridlines
+        yaxis=dict(showgrid=False),  # Remove y-axis gridlines
+        margin=dict(b=0),  # Reduce the margin at the bottom (adjust as needed)
+        height=275,  # Set the height of the visualiza  tion
+        )
+    # Set the y-axis range
+    fig.update_yaxes(range=y_range)
+
+    return fig
 
 #-------------------------------------------------
 #-3- Pre-load variables
@@ -119,16 +168,12 @@ colors = {
     'title': '#ffffff'
     }
 
-# Calculate the minimum and maximum TOI values from your DataFrame
+#-- Calculate the minimum and maximum TOI values from your DataFrame
 min_toi_value = ranks_df['TOI (mins)'].min()
 max_toi_value = ranks_df['TOI (mins)'].max()
 
-#-------------------------------------------------
-#-4- App
-#-------------------------------------------------
-
-#-- Initialize the app
-app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY theme for dark mode
+#-- Create a multi-line chart (uses a bunch of defaults)
+metric_season_trend = create_metric_season_trend_viz(ranks_1y_df)
 
 #-- Player stat cards
 cards = html.Div([
@@ -147,8 +192,19 @@ cards = html.Div([
 
 ])
 
+#-------------------------------------------------
+#-4- App
+#-------------------------------------------------
+
+#-- Initialize the app
+app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY theme for dark mode
+
 #-- Define app layout
 app.layout = html.Div([
+
+    #-------------------------------------------------
+    #-4.1- App: setup
+    #-------------------------------------------------
     dbc.Navbar(
         dbc.Container([
             dbc.Col(html.Img(src=app.get_asset_url('avatar.jpg'), height="40px"), width="auto"),
@@ -248,8 +304,23 @@ app.layout = html.Div([
 
     html.Br(),
 
+    #-------------------------------------------------
+    #-4.2- App: Player Summary stats
+    #-------------------------------------------------
+
     # Cards for player-specific metrics
     html.Div(dbc.Container(cards)),
+
+    # Trend line
+    dcc.Graph(
+        id='metric-season-trend',
+        figure=metric_season_trend,
+        style={"margin-top": "0px"}  # Remove the margin at the top of the trend line
+    ),
+
+    #-------------------------------------------------
+    #-4.3- App: Shooting Ability
+    #-------------------------------------------------
 
     # Rink image
     dbc.Container([
@@ -266,6 +337,12 @@ app.layout = html.Div([
         fluid=True,
         style={'width': '100%'},
     ),
+
+    #-------------------------------------------------
+    #-4.4- App: Exploring player ratings
+    #-------------------------------------------------
+
+    html.H4("Explore Player Ratings", style={'text-align': 'center', 'color': '#ffffff'}),
 
     # Horizontal radio button group for "Position"
     dbc.Row([
@@ -361,16 +438,17 @@ app.layout = html.Div([
                         'backgroundColor': '#444d56',
                     },
                 ],
-                                # Enable sorting
                 sort_action='native',  # Use built-in sorting functionality
                 sort_mode='multi',  # Allow multi-column sorting
             ),
             width=12
         ),
-
     ),
-
 ])
+
+#-------------------------------------------------
+#-5- React callbacks
+#-------------------------------------------------
 
 # Callback to update the DataTable based on selected position, season breakdown, and TOI range
 @app.callback(
@@ -411,8 +489,9 @@ def update_table(selected_position, selected_season, toi_range):
     Output(component_id='pk-ring-progress-value', component_property='children'),
     Output(component_id='penalty-ring-progress-value', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
+
 )
-def update_player_stat_rings(player_name, df = ranks_df_raw):
+def update_player_stat_rings(player_name, df = ranks_3y_df):
     stats = get_player_stats(player_name, df)
 
     # Create a mapping of stat display names to their corresponding column names
@@ -427,10 +506,7 @@ def update_player_stat_rings(player_name, df = ranks_df_raw):
         'pk': 'PK',
         'penalty': 'Penalty',
     }
-
-
     stats_rings = []
-
     for column_name, display_name in stats_mapping.items():
         # Conditionally set the ring color based on the stat value
         if stats[column_name] > 80:
@@ -462,6 +538,18 @@ def update_player_stat_rings(player_name, df = ranks_df_raw):
     # The size of this list must correspond to the number of outputs in the callback
     # The order must also match the order of the outputs
     return stats_rings
+
+@app.callback(
+    Output('metric-season-trend', 'figure'),
+    Input('player-name-dropdown', 'value'),
+    )
+def update_metric_season_trend(selected_player, df = ranks_1y_df):
+    # Filter the ranks DataFrame for the selected player and season
+    filtered_df = df[(df['Player Name'] == selected_player)]
+    # Create or update the multi-line chart for the selected player
+    fig = create_metric_season_trend_viz(filtered_df, player_name=selected_player)
+
+    return fig
 
 @callback(
     Output(component_id='player-stats-1', component_property='children'),

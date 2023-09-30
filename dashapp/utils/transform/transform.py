@@ -132,7 +132,6 @@ def plot_comparisons(player_name):
         data_min = data_max * -1
 
     x, y = np.meshgrid(np.linspace(0, 89, 100), np.linspace(-42.5, 42.5, 85))
-    # fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='w', edgecolor='k')
 
     meshgrid_df = pd.DataFrame({'x': x.flatten(), 'y': y.flatten(), 'z': new_diff.flatten()})
     meshgrid_df['x'] = meshgrid_df['x'].round(0)
