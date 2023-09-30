@@ -10,6 +10,7 @@ import plotly.express as px
 import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
 from datetime import date, datetime
+import base64
 
 #-- Modules
 from dashapp.utils.extract.extract import get_player_headshot
@@ -31,6 +32,18 @@ def prepare_clean_ranks_table(df, sort_col = 'EV XG'):
     df2[float_columns] = df2[float_columns].round(1)
     return df2.sort_values(by=f'{sort_col}', ascending = False)
 
+#-- Function to prepare the player ranks dataframe (all)
+def prepare_clean_cap_table(df):
+    df2 = df[['PLAYER_FULL_NAME', 'SIGNING_YEAR', 'EXPIRY_YEAR', 'YEARS_LEFT', 'CAP_HIT2', 'AAV2']]
+    df2 = df2.rename(columns={'PLAYER_FULL_NAME': 'Player Name', 'SIGNING_YEAR': 'Contract Year', 'EXPIRY_YEAR': 'Contract Expiry', 'YEARS_LEFT': 'Term Remaining', 'CAP_HIT2': 'Cap Hit', 'AAV2': 'AAV'})
+
+    return df2
+
+#-- Function to join cap data to ranks table
+def join_ranks_cap_data(df1, df2, left_key = "Player Name", right_key = "Player Name", how = "left"):
+    joined_table = pd.merge(df1, df2, left_on=left_key, right_on=right_key, how=how)
+    return joined_table
+
 #-- Function to partition out ranks_df by season & season window
 def season_window_partitions(df, sort_col = 'EV XG'):
     ranks_df1 = df[df['Season Window'] == 'Last 3 seasons'].sort_values(by=f'{sort_col}', ascending = False)
@@ -48,9 +61,7 @@ def create_card(title):
             style={"margin": "0px", "padding": "0px"}  # Remove margin and padding
         ),
         width={"size": 4},
-
     )
-
     return card
 
 #-- Function to create stat ring around card
@@ -80,7 +91,10 @@ def get_player_card(player_name, df):
         'height': player_df['height'].values[0],
         'weight': player_df['weight'].values[0],
         'team_code': player_df['current_team_code'].values[0],
-        'team_name': player_df['current_team_name'].values[0]
+        'team_name': player_df['current_team_name'].values[0],
+        'cap_hit': player_df['Cap Hit'].values[0],
+        'aav': player_df['AAV'].values[0],
+        'term': player_df['Term Remaining'].values[0]
     }
 
 #-- Fcuntion to get information out of player metrics out of ranks df and store as a dictionary for player cards downstream
@@ -156,9 +170,20 @@ def create_metric_season_trend_viz(df, x_column='Season', y_columns=['EV Offense
 #-3- Pre-load variables
 #-------------------------------------------------
 
-#-- Player ranks dataframe
+#-- Cap data
+#... raw
+cap_df_raw = read_data('data/capfriendly/capfriendly_data2.csv')
+#... clean
+cap_df_clean = prepare_clean_cap_table(cap_df_raw)
+
+#-- Player ranks data
+#... raw
 ranks_df_raw = read_data('data/bq_results/202202_player_ranks.csv')
-ranks_df = prepare_clean_ranks_table(ranks_df_raw, "EV XG")
+ranks_cap_df_raw = join_ranks_cap_data(ranks_df_raw, cap_df_clean, left_key = 'player_name', right_key = 'Player Name')
+#... clean
+ranks_df_clean = prepare_clean_ranks_table(ranks_df_raw, "EV XG")
+#... final
+ranks_df = join_ranks_cap_data(ranks_df_clean, cap_df_clean, left_key = 'Player Name', right_key = 'Player Name')
 ranks_3y_df, ranks_1y_df = season_window_partitions(ranks_df, "EV XG")
 
 #-- Set colors
@@ -191,6 +216,43 @@ cards = html.Div([
     style={'margin-right': '1px'}),  # Adjust the margin-right value to reduce spacing
 
 ])
+
+#-- Team logo mapping
+team_image_mapping = {
+    'ANA': 'ANA.png',
+    'ARI': 'ARI.png',
+    'BOS': 'BOS.png',
+    'BUF': 'BUF.png',
+    'CGY': 'CGY.png',
+    'CAR': 'CAR.png',
+    'CHI': 'CHI.png',
+    'COL': 'COL.png',
+    'CBJ': 'CBJ.png',
+    'DAL': 'DAL.png',
+    'DET': 'DET.png',
+    'EDM': 'EDM.png',
+    'FLA': 'FLA.png',
+    'LAK': 'LAK.png',
+    'MIN': 'MIN.png',
+    'MTL': 'MTL.png',
+    'NSH': 'NSH.png',
+    'NJD': 'NJD.png',
+    'NYI': 'NYI.png',
+    'NYR': 'NYR.png',
+    'OTT': 'OTT.png',
+    'PHI': 'PHI.png',
+    'PIT': 'PIT.png',
+    'SEA': 'SEA.png',
+    'SJS': 'SJS.png',
+    'STL': 'STL.png',
+    'TBL': 'TBL.png',
+    'TOR': 'TOR.png',
+    'VAN': 'VAN.png',
+    'VGK': 'VGK.png',
+    'WSH': 'WSH.png',
+    'WPG': 'WPG.png',
+}
+
 
 #-------------------------------------------------
 #-4- App
@@ -258,6 +320,15 @@ app.layout = html.Div([
                     id='player-stats-1',
                     style={
                         'color': colors['text'],
+                    }),
+            ], style={'margin-left': '5px'}),  # Add margin for spacing
+            html.Div([
+                html.H6(
+                    id='player-stats-2',
+                    style={
+                        'color': colors['text'],
+                        'text-align': 'center',  # Center player-stats-2 horizontally
+
                     }),
             ], style={'margin-left': '5px'}),  # Add margin for spacing
         ], style={'flex': '1', 'align-self': 'center'}),  # Allow text to grow, align to center
@@ -555,9 +626,17 @@ def update_metric_season_trend(selected_player, df = ranks_1y_df):
     Output(component_id='player-stats-1', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_stats(selected_player, df = ranks_df_raw):
+def set_player_stats1(selected_player, df = ranks_cap_df_raw):
     stats = get_player_card(selected_player, df)
-    return f'Age: {stats["age"]} • Team: {stats["team_name"]} • {stats["position"]} • Shoots: {stats["shoots"]}'
+    return f'Age: {stats["age"]} • Team: {stats["team_name"]} • Pos: {stats["position"]} • Shoots: {stats["shoots"]}'
+
+@callback(
+    Output(component_id='player-stats-2', component_property='children'),
+    Input(component_id='player-name-dropdown', component_property='value')
+)
+def set_player_stats2(selected_player, df = ranks_cap_df_raw):
+    stats = get_player_card(selected_player, df)
+    return f'Cap: {stats["cap_hit"]} x {round(stats["term"])}'
 
 @callback(
     Output(component_id='player-name', component_property='children'),
@@ -578,7 +657,7 @@ def plot_rink(player_name):
     Output(component_id='player-image', component_property='src'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_headshot(player_name, df = ranks_df_raw):
+def set_player_headshot(player_name, df = ranks_cap_df_raw):
     stats = get_player_card(player_name, df)
     return get_player_headshot(stats['id'])
 
