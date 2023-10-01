@@ -1,0 +1,8 @@
+dash==2.13.0
+dash-bootstrap-components==1.5.0
+dash-mantine-components==0.12.1
+kaleido==0.2.1
+matplotlib==3.8.0
+numpy==1.26.0
+pandas==2.1.1
+scipy==1.11.3
