@@ -18,6 +18,8 @@ where is_player_current_team is True
 qualify row_number() over (partition by player_id order by player_season_team_last_dt desc) = 1
 )
 
+
+
 -- current-season-stats
 ,current_stats as (
 select
@@ -86,9 +88,10 @@ where 1 =1
   and cast(season_id as int64) in (20202021, 20212022, 20222023)
 group by 1, 2, 3, 4, 5
 having 1 = 1
-  and sum(time_on_ice_minutes) > 100
+  and sum(time_on_ice_minutes) > 450
   and sum(boxscore_games) > 30
   and avg(avg_time_on_ice_mins) > 6
+  and sum(case when cast(season_id as int64) = 20222023 then shots_iff else 0 end) > 10
 
 )
 -- current-season-stats
@@ -157,11 +160,13 @@ from
 where 1 =1
   and game_type = '02'
   and cast(season_id as int64) in (20202021, 20212022, 20222023)
+  --and exists (select 1 from current_stats where current_stats.player_id = s.player_id)
 group by 1, 2, 3, 4, 5
 having 1 = 1
-  and sum(time_on_ice_minutes) > 100
+  and sum(time_on_ice_minutes) > 150
   and sum(boxscore_games) > 12
   and avg(avg_time_on_ice_mins) > 6
+  and sum(shots_iff) > 10
 
 )
 
