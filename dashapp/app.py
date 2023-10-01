@@ -62,8 +62,8 @@ def format_player_name(player_name):
 def col_cleanup(df, suffix, keep_cols):
     # Replace column values
     for col in ['Active', 'Contract Start', 'Contract End', 'Term Remaining', 'Cap Hit', 'AAV']:
-        col_nam = f'{col}{suffix}'
-        df[col] = df[col_nam]
+        col_name = f'{col}{suffix}'
+        df[f'{col}'] = df[f'{col_name}']
 
     # Keep specific columns
     df = df[keep_cols]
@@ -255,13 +255,30 @@ def get_player_card1(player_name, df, player_name_col):
 #-- Function to get information out of player attributes out of ranks df and store as a dictionary for player cards downstream (joined cap needed)
 def get_player_card2(player_name, df, player_name_col):
     player_df = df[df[player_name_col] == player_name]
+
+   # Initialize attributes with "Inactive"
+    contract_start = "Inactive"
+    contract_end = "Inactive"
+    cap_hit = "Inactive"
+    aav = "Inactive"
+    term = "Inactive"
+
+    # Check if player_df is not empty
+    if not player_df.empty:
+        # Update attributes if values exist
+        contract_start = player_df['Contract Start'].values[0]
+        contract_end = player_df['Contract End'].values[0]
+        cap_hit = player_df['Cap Hit'].values[0]
+        aav = player_df['AAV'].values[0]
+        term = player_df['Term Remaining'].values[0]
+
     return {
         'name': player_name,
-        'contract_start': player_df['Contract Start'].values[0],
-        'contract_end': player_df['Contract End'].values[0],
-        'cap_hit': player_df['Cap Hit'].values[0],
-        'aav': player_df['AAV'].values[0],
-        'term': player_df['Term Remaining'].values[0]
+        'contract_start': contract_start,
+        'contract_end': contract_end,
+        'cap_hit': cap_hit,
+        'aav': aav,
+        'term': term
     }
 
 
@@ -299,7 +316,7 @@ def create_metric_season_trend_viz(df, x_column='Season', y_columns=['EV Offense
     fig = px.line(df2, x=x_column, y=y_columns)
 
     # Define custom line colors for each trace (line)
-    line_colors = ['#2B4EFF', '#E75480', '#7630ff ']  # Purple, Blue, Magenta
+    line_colors = ['#3880bc', '#f7bb7e', '#7630ff ']  # Purple, Blue, Magenta
 
     # Trend line chart layout and style modifications
     for i, color in enumerate(line_colors):
@@ -478,7 +495,7 @@ app.layout = html.Div([
                 html.Label('Player:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
                 dcc.Dropdown(
                     id='player-name-dropdown',
-                    options=set_player_dropdown_options(ranks_df, "Player Name"),
+                    options=set_player_dropdown_options(ranks_3y_df[ranks_3y_df['Position'] != 'Goalie'], "Player Name"),
                     value='Connor McDavid',
                     clearable=False
                 )],
@@ -548,23 +565,25 @@ app.layout = html.Div([
                                 ],
                                 value='against_league', # Set the default value
                                 inline=True, # configure the RadioItems to be displayed horizontally
+                                style={'padding': '10px'},  # Add padding to the radio items
                             ),
                             style={'text-align': 'left'}
                         ),
                         html.Div(html.H2(id='rink-image-title'), style={'textAlign': 'center'}),
                         html.Div(id='rink-image'),
-                        ]
+                    ]
                 ),
                 style={'textAlign': 'center'}
             ),
             width=12,
             style={'height': '100%'}
         ),
-        justify='center',
+        justify='center',  # Center the row horizontally
         # style={'height': 200},
     ),
 
     html.Br(),
+
 
     #-------------------------------------------------
     #-4.4- App: Exploring player ratings
@@ -824,7 +843,13 @@ def set_player_stats1(selected_player, df=ranks_cap_df_raw, player_name_col = 'p
 )
 def set_player_stats2(selected_player, df = ranks_cap_df, player_name_col = 'Player Name'):
     stats = get_player_card2(selected_player, df, player_name_col)
-    return f'Cap: {stats["cap_hit"]} x {round(stats["term"])}'
+    # Check if term is not NaN before rounding
+    if not pd.isna(stats["term"]):
+        term_rounded = round(stats["term"])
+    else:
+        term_rounded = "Inactive"
+
+    return f'Cap: {stats["cap_hit"]} x {term_rounded}'
 
 @callback(
     Output(component_id='player-info-name', component_property='children'),

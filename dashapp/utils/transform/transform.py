@@ -173,7 +173,7 @@ def plot_comparisons(player_name, comparison_type):
         coloraxis_colorbar=dict(
             title=legend_header_map[comparison_type],
             title_side='top',
-            title_font=dict(color="white", size=20),  # Set the title font color to white and size to 20
+            title_font=dict(color="white", size=18),  # Set the title font color to white and size to 20
             x=0.5,  # Adjust the horizontal position of the color legend
             y=-0.025,  # Adjust the vertical position of the color legend
             xanchor='center',  # Center the color legend horizontally
