@@ -146,8 +146,8 @@ def create_xg_array(data, is_smooth = True):
     return xgoals
 
 def normalize_xg_dataframe_by_chunk(chunksize=100000):
-    raw_filename = 'app/assets/csv/bigquery/202202_player_shots.csv'
-    normalized_filename = 'app/assets/csv/bigquery/202202_player_shots_normalized.csv'
+    raw_filename = 'assets/csv/bigquery/202202_player_shots.csv'
+    normalized_filename = 'assets/csv/bigquery/202202_player_shots_normalized.csv'
     if os.path.exists(normalized_filename):
         os.remove(normalized_filename)
     # Read the data in chunks
@@ -203,7 +203,7 @@ def get_league_xg(filename, xg_strength_state_code, chunksize=100000):
 
 def plot_comparisons(player_name, comparison_type):
     xg_strength_state_code = 'ev'
-    normalized_filename = 'app/assets/csv/bigquery/202202_player_shots_normalized.csv'
+    normalized_filename = 'assets/csv/bigquery/202202_player_shots_normalized.csv'
 
     # Always fetch the player XG
     player_xg = get_player_xg(normalized_filename, xg_strength_state_code, player_name)
@@ -232,7 +232,7 @@ def plot_comparisons(player_name, comparison_type):
     # rink.savefig('dashapp/images/rink_img.png', format='png', dpi=300, transparent=True)
 
     # Load the images
-    rink_img = Image.open('app/assets/images/rink.png')
+    rink_img = Image.open('assets/images/rink.png')
 
     # Set the min and max values for the color scale
     if abs(data_min) > data_max:
@@ -327,7 +327,7 @@ def get_api(url):
     except Exception as e:
         print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - An unexpected error occurred: {e}")
 
-def get_player_headshot(player_id, file_path = 'app/assets/csv/bigquery/2022_player_current_team.csv'):
+def get_player_headshot(player_id, file_path = 'assets/csv/bigquery/2022_player_current_team.csv'):
     """Summary: Get player headshots from the NHL API and parse them into a DataFrame."""
 
     # Logic to get the current player's team code

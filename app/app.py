@@ -16,7 +16,7 @@ import numpy as np
 import re
 
 #-- Modules
-from app.utils.common_functions import get_player_headshot, plot_comparisons, normalize_xg_dataframe_by_chunk
+from utils.common_functions import get_player_headshot, plot_comparisons, normalize_xg_dataframe_by_chunk
 
 #-------------------------------------------------
 #-2- Helper functions
@@ -356,13 +356,13 @@ def create_metric_season_trend_viz(df, x_column='Season', y_columns=['EV Offense
 
 #-- Cap data
 #... raw
-cap_df_raw = read_data('app/assets/csv/capfriendly/capfriendly_data_clean.csv')
+cap_df_raw = read_data('assets/csv/capfriendly/capfriendly_data_clean.csv')
 #... clean
 cap_df = prepare_clean_cap_table(cap_df_raw)
 
 #-- Player ranks data
 #... raw
-ranks_df_raw = read_data('app/assets/csv/bigquery/202202_player_ranks.csv')
+ranks_df_raw = read_data('assets/csv/bigquery/202202_player_ranks.csv')
 ranks_cap_df_raw = join_ranks_cap_data_raw(ranks_df_raw, cap_df)
 #... clean
 ranks_df = prepare_clean_ranks_table(ranks_df_raw, "EV XG")
@@ -900,7 +900,7 @@ def set_player_headshot(player_name, df = ranks_cap_df_raw, player_name_col = 'p
 )
 def set_player_card_colors(selected_player, df = ranks_cap_df_raw):
     stats = get_player_card1(selected_player, df, player_name_col = 'player_name')
-    colors = pd.read_csv('app/assets/csv/colors/team_colors.csv')
+    colors = pd.read_csv('assets/csv/colors/team_colors.csv')
     # filter team_colors dataframe for the selected player's team
     team_colors = colors[colors['team_code'] == stats['team_code']]
     # get the primary and secondary colors for the selected player's team
