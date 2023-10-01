@@ -190,6 +190,10 @@ def plot_comparisons(player_name, comparison_type):
         paper_bgcolor='rgba(0, 0, 0, 0)',
     )
 
+    if comparison_type == 'individual':
+        fig.update_layout(coloraxis_showscale=False)
+
+
     # Set x and y axis ranges to match data
     fig.update_xaxes(range=[-0.1, 100], tickfont=dict(color="white"))
     fig.update_yaxes(range=[-42.6, 42.6], tickfont=dict(color="white"), showticklabels=False)
