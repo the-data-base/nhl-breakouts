@@ -4,6 +4,7 @@
 
 
 #-- Libraries
+from base64 import b64encode
 from dash import Dash, html, dash_table, dcc, callback, Output, Input
 import pandas as pd
 import plotly.express as px
@@ -15,7 +16,7 @@ import numpy as np
 
 #-- Modules
 from dashapp.utils.extract.extract import get_player_headshot
-from dashapp.utils.transform.transform import plot_comparisons
+from dashapp.utils.transform.transform import plot_comparisons, normalize_xg_dataframe_by_chunk
 
 #-------------------------------------------------
 #-2- Helper functions
@@ -263,6 +264,8 @@ menu_outline_style = {
     'padding': '0px',  # Add padding for spacing
 }
 
+# Normalize XG shot coordinates when the app starts
+normalize_xg_dataframe_by_chunk()
 
 #-------------------------------------------------
 #-4- App
@@ -312,60 +315,42 @@ app.layout = html.Div([
         dark=True,
     ),
 
-    # Create a div for the header with an image, player name, and subtitles
-    html.Div([
-        html.Div(
-            html.Img(
-                id='player-image',
-                height="140px",
-                style={
-                    'border-radius': '50%',  # Apply circular border
-                    'background': '#ffffff',
-                    'border': '3px solid #000000',  # Border color
-                }
-            ),
-            style={
-                'display': 'flex',
-                'flex': '0 0 auto',  # Don't allow image to grow or shrink
-                'align-items': 'center',  # Center vertically
-                'justify-content': 'center',  # Center horizontally
-                'margin': '5px',  # Add margin for spacing
-                'height': '150px',  # Specify a fixed height for the container
-            }
+    # Player headshot
+    html.Div(
+        id='player-image-div',
+        children=html.Img(
+            id='player-image',
+            style={'height': '140px', 'width': 'auto', 'border-radius': '50%', 'background-color': 'white'},
         ),
-        html.Div([
-            html.H1(
-                id='player-name',
-                style={
-                    'color': colors['title'],
-                    'font-weight': 'bold',  # Make the font bold
-                    'margin-bottom': '5px',  # Add margin for spacing
-                    'text-align': 'center',  # Center the H1 title horizontally
-                }
-            ),
-            html.Div([
-                html.H6(
-                    id='player-stats-1',
-                    style={
-                        'color': colors['text'],
-                    }),
-            ], style={'margin-left': '5px'}),  # Add margin for spacing
-            html.Div([
-                html.H6(
-                    id='player-stats-2',
-                    style={
-                        'color': colors['text'],
-                        'text-align': 'center',  # Center player-stats-2 horizontally
+        style={
+            'background-color': '#041E42',
+            'text-align': 'center'
+        }
+    ),
 
-                    }),
-            ], style={'margin-left': '5px'}),  # Add margin for spacing
-        ], style={'flex': '1', 'align-self': 'center'}),  # Allow text to grow, align to center
-    ], style={
-        'display': 'flex',
-        'flex-direction': 'column',
-        'align-items': 'center',
-        'justify-content': 'center',
-    }),
+    # Player card
+    html.Div(
+        id='player-info-div',
+        children=dbc.Row([
+            html.Div([
+                html.H1(
+                    id='player-name',
+                    style={'white-space': 'nowrap'}
+                ),
+                html.Div(id='player-info-age', style={'display': 'inline-block'}),
+                html.Div(id='player-info-team-name', style={'display': 'inline-block'}),
+                html.Div(id='player-info-position', style={'display': 'inline-block'}),
+                html.Div(id='player-info-shoots', style={'display': 'inline-block'}),
+                html.P(
+                    id='player-stats-2'
+                )
+            ],
+            style={
+                'background-color': '#FF4C00',
+                'text-align': 'center'
+            }),
+        ])
+    ),
 
     # New row for a searchable dropdown menu containing player names
     dbc.Row([
@@ -417,25 +402,51 @@ app.layout = html.Div([
         style={"margin-top": "0px"}  # Remove the margin at the top of the trend line
     ),
 
+    html.Br(),
+
     #-------------------------------------------------
     #-4.3- App: Shooting Ability
     #-------------------------------------------------
 
     # Rink image
-    dbc.Container([
-        dbc.Row(
-            dbc.Col(
-                dcc.Graph(
-                    figure={},
-                    id='rink',
-                    style={'height': '100%', 'max-width': '100%', 'margin': '0 auto'},
+    dbc.Row(
+        # This row is going to contain 2 main columns: the rink image and data table
+        dbc.Col(
+            html.Div(
+                dbc.Spinner(
+                    children=[
+                        html.Div(
+                            dcc.RadioItems(
+                                id='rink-image-comparison-type',
+                                options=[
+                                    {
+                                        'label': html.Div('Against League', style={'font-size': 15, 'padding-right': 10, 'display': 'inline'}),
+                                        'value': 'against_league',
+                                    },
+                                    {
+                                        'label': html.Div('Individual', style={'font-size': 15, 'padding-right': 10, 'display': 'inline'}),
+                                        'value': 'individual',
+                                    },
+                                ],
+                                value='against_league', # Set the default value
+                                inline=True, # configure the RadioItems to be displayed horizontally
+                            ),
+                            style={'text-align': 'left'}
+                        ),
+                        html.Div(html.H2(id='rink-image-title'), style={'textAlign': 'center'}),
+                        html.Div(id='rink-image'),
+                        ]
                 ),
+                style={'textAlign': 'center'}
             ),
-            className="justify-content-center",
-        ),],
-        fluid=True,
-        style={'width': '100%'},
+            width=12,
+            style={'height': '100%'}
+        ),
+        justify='center',
+        # style={'height': 200},
     ),
+
+    html.Br(),
 
     #-------------------------------------------------
     #-4.4- App: Exploring player ratings
@@ -652,12 +663,42 @@ def update_metric_season_trend(selected_player, df = ranks_1y_df):
     return fig
 
 @callback(
-    Output(component_id='player-stats-1', component_property='children'),
+    Output(component_id='player-info-age', component_property='children'),
+    Output(component_id='player-info-team-name', component_property='children'),
+    Output(component_id='player-info-position', component_property='children'),
+    Output(component_id='player-info-shoots', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_stats1(selected_player, df = ranks_cap_df_raw):
     stats = get_player_card(selected_player, df)
-    return f'Age: {stats["age"]} • Team: {stats["team_name"]} • Pos: {stats["position"]} • Shoots: {stats["shoots"]}'
+    components = []
+    for stat in ['age', 'team_name', 'position', 'shoots']:
+        if stat == 'age':
+            components.append(
+                html.P('Age: {} |'.format(stats[stat]), style={'margin-bottom': 0})
+            )
+        if stat == 'team_name':
+            components.append(
+                html.P(
+                    children=[
+                        html.Img(
+                        src='https://assets.nhle.com/logos/nhl/svg/{}_dark.svg'.format(stats['team_code']),
+                        height=18
+                        ),
+                        html.P(' {} |'.format(stats['team_code']), style={'display': 'inline-block', 'padding-right': 5, 'margin-bottom': 0})
+                    ]
+                )
+            )
+        if stat == 'position':
+            components.append(
+                html.P('Position: {} |'.format(stats[stat]), style={'padding-right': 5, 'margin-bottom': 0})
+            )
+        if stat == 'shoots':
+            components.append(
+                html.P('Shoots: {}'.format(stats[stat]), style={'margin-bottom': 0})
+            )
+
+    return components
 
 @callback(
     Output(component_id='player-stats-2', component_property='children'),
@@ -675,12 +716,27 @@ def set_player_name(selected_player, df = ranks_df_raw):
     return selected_player
 
 @callback(
-    Output(component_id='rink', component_property='figure'),
-    Input(component_id='player-name-dropdown', component_property='value')
+    Output(component_id='rink-image-title', component_property='children'),
+    Input(component_id='player-name-dropdown', component_property='value'),
+    Input(component_id='rink-image-comparison-type', component_property='value')
 )
-def plot_rink(player_name):
-    fig = plot_comparisons(player_name)
-    return fig
+def set_rink_image_title(player_name, comparison_type):
+    if comparison_type == 'against_league':
+        return f'{player_name} vs. League'
+    elif comparison_type == 'individual':
+        return f'{player_name} Shots Taken'
+
+@callback(
+    Output(component_id='rink-image', component_property='children'),
+    Input(component_id='player-name-dropdown', component_property='value'),
+    Input(component_id='rink-image-comparison-type', component_property='value')
+)
+def plot_rink(player_name, comparison_type):
+    fig = plot_comparisons(player_name, comparison_type)
+    img_bytes = fig.to_image(format='png')
+    encoding = b64encode(img_bytes).decode()
+    img_b64 = 'data:image/png;base64,{}'.format(encoding)
+    return html.Img(src=img_b64, style={'maxWidth': '95%'})
 
 @callback(
     Output(component_id='player-image', component_property='src'),
