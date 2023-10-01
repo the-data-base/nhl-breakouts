@@ -287,7 +287,7 @@ def get_player_stats(player_name, df):
 
 #-- Function to get player attributes from ranks_df
 def set_player_dropdown_options(df, player_name_col):
-    return [{'label': player, 'value': player} for player in df[player_name_col].unique()]
+    return sorted([{'label': player, 'value': player} for player in df[player_name_col].unique()], key=lambda x: x['label'])
 
 #-- Function to create a multi-line chart
 def create_metric_season_trend_viz(df, x_column='Season', y_columns=['EV Offense', 'EV Defense', 'Finishing'], y_range=[0, 100], player_name='Connor McDavid'):
@@ -449,11 +449,7 @@ app.layout = html.Div([
         children=html.Img(
             id='player-image',
             style={'height': '140px', 'width': 'auto', 'border-radius': '50%', 'background-color': 'white'},
-        ),
-        style={
-            'background-color': '#041E42',
-            'text-align': 'center'
-        }
+        )
     ),
 
     # Player card
@@ -462,21 +458,14 @@ app.layout = html.Div([
         children=dbc.Row([
             html.Div([
                 html.H1(
-                    id='player-name',
-                    style={'white-space': 'nowrap'}
+                    id='player-info-name'
                 ),
-                html.Div(id='player-info-age', style={'display': 'inline-block'}),
-                html.Div(id='player-info-team-name', style={'display': 'inline-block'}),
-                html.Div(id='player-info-position', style={'display': 'inline-block'}),
-                html.Div(id='player-info-shoots', style={'display': 'inline-block'}),
-                html.P(
-                    id='player-stats-2'
-                )
-            ],
-            style={
-                'background-color': '#FF4C00',
-                'text-align': 'center'
-            }),
+                html.Div(id='player-info-age'),
+                html.Div(id='player-info-team-name'),
+                html.Div(id='player-info-position'),
+                html.Div(id='player-info-shoots'),
+                html.P(id='player-info-cap')
+            ]),
         ])
     ),
 
@@ -829,7 +818,7 @@ def set_player_stats1(selected_player, df=ranks_cap_df_raw, player_name_col = 'p
     return components
 
 @callback(
-    Output(component_id='player-stats-2', component_property='children'),
+    Output(component_id='player-info-cap', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_stats2(selected_player, df = ranks_cap_df, player_name_col = 'Player Name'):
@@ -837,7 +826,7 @@ def set_player_stats2(selected_player, df = ranks_cap_df, player_name_col = 'Pla
     return f'Cap: {stats["cap_hit"]} x {round(stats["term"])}'
 
 @callback(
-    Output(component_id='player-name', component_property='children'),
+    Output(component_id='player-info-name', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
 def set_player_name(selected_player, df = ranks_cap_df_raw):
@@ -852,7 +841,7 @@ def set_rink_image_title(player_name, comparison_type):
     if comparison_type == 'against_league':
         return f'{player_name} vs. League'
     elif comparison_type == 'individual':
-        return f'{player_name} Shots Taken'
+        return f'{player_name} Shot XG'
 
 @callback(
     Output(component_id='rink-image', component_property='children'),
@@ -873,6 +862,43 @@ def plot_rink(player_name, comparison_type):
 def set_player_headshot(player_name, df = ranks_cap_df_raw, player_name_col = 'player_name'):
     stats = get_player_card1(player_name, df, player_name_col)
     return get_player_headshot(stats['id'])
+
+@callback(
+    # Div components
+    Output(component_id='player-image-div', component_property='style'),
+    Output(component_id='player-info-div', component_property='style'),
+    # Paragraph components
+    Output(component_id='player-info-name', component_property='style'),
+    Output(component_id='player-info-age', component_property='style'),
+    Output(component_id='player-info-team-name', component_property='style'),
+    Output(component_id='player-info-position', component_property='style'),
+    Output(component_id='player-info-shoots', component_property='style'),
+    Output(component_id='player-info-cap', component_property='style'),
+    Input(component_id='player-name-dropdown', component_property='value'),
+)
+def set_player_card_colors(selected_player, df = ranks_cap_df_raw):
+    stats = get_player_card(selected_player, df)
+    colors = pd.read_csv('dashapp/assets/colors/team_colors.csv')
+    # filter team_colors dataframe for the selected player's team
+    team_colors = colors[colors['team_code'] == stats['team_code']]
+    # get the primary and secondary colors for the selected player's team
+    primary_color = team_colors[team_colors['color_type']=='primary'].iloc[0]['hex']
+    secondary_color = team_colors[team_colors['color_type']=='secondary'].iloc[0]['hex']
+
+    # Div styles
+    style_primary_div = {'background-color': primary_color, 'text-align': 'center'}
+    style_secondary_div = {'background-color': secondary_color, 'text-align': 'center'}
+
+    # Text styles
+    style_secondary_name = {'color': primary_color, 'white-space': 'nowrap'}
+    style_secondary_age = {'color': primary_color, 'display': 'inline-block'}
+    style_secondary_team_name = {'color': primary_color, 'display': 'inline-block'}
+    style_secondary_position = {'color': primary_color, 'display': 'inline-block'}
+    style_secondary_shoots = {'color': primary_color, 'display': 'inline-block'}
+    style_secondary_cap = {'color': primary_color}
+
+    return style_primary_div, style_secondary_div, style_secondary_name, style_secondary_age, style_secondary_team_name, style_secondary_position, style_secondary_shoots, style_secondary_cap
+
 
 # Run the app
 if __name__ == '__main__':
