@@ -3,7 +3,7 @@
 # NHL Breakout Scores
 Model stuffs to try and find the players most likely to have a breakout season
 
-![NHL Breakout Meme](assets/nhl_breakout_meme.PNG "NHL Breakout Scores meme")
+![NHL Breakout Meme](app/assets/images/nhl_breakout_meme.png "NHL Breakout Scores meme")
 
 ## Table of contents
 ---
@@ -29,7 +29,7 @@ We are using the `trunk based` development workflow to version control this repo
 
 Since pictures speak 10^3 words, below explains the process for contributing:
 
-![NHL-BREAKOUTS Trunk-based development workflow](assets/workflow.PNG "NHL-BREAKOUTS Trunk-based development workflow")
+![NHL-BREAKOUTS Trunk-based development workflow](app/assets/images/workflow.png "NHL-BREAKOUTS Trunk-based development workflow")
 
 
 ## Setup
@@ -38,7 +38,7 @@ Since pictures speak 10^3 words, below explains the process for contributing:
 ## Future releases
 ---
 
-          
+
 ## Resources
 ---
 
@@ -46,4 +46,3 @@ Since pictures speak 10^3 words, below explains the process for contributing:
 ## Developer contact
 ---
 * [Domenic Fayad](https://www.fullstaxx.com/)
-

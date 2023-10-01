@@ -1,18 +1,119 @@
+import datetime
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
 import plotly.express as px
-from PIL import Image
+import requests
+from io import BytesIO
 from matplotlib import pyplot
+from PIL import Image
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 
-
-# Modules
-from dashapp.utils.visualize.create_rink import create_rink
-
+"""
+Initialization
+"""
 pyplot.ioff()
 pyplot.switch_backend('Agg')
+
+"""
+Hockey rink related functions
+- create_rink_figure: Create a hockey rink figure
+- normalize_shot_coordinates: Normalize shot coordinates so that all shots are shooting "right"
+- normalize_xg_dataframe_by_chunk: Normalize the xG dataframe by chunk
+- get_player_xg: Get the xG for a specific player
+- get_league_xg: Get the xG for the entire league
+- plot_comparisons: Plot the xG comparisons
+"""
+def create_rink_figure(
+    plot_half = True,
+    board_radius = 25,
+    alpha = 1,
+):
+
+    # Create a new figure
+    fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='none', edgecolor='none')
+
+    #Cornor Boards
+    ax.add_artist(mpl.patches.Arc((100-board_radius , (85/2)-board_radius), board_radius * 2, board_radius * 2 , theta1=0, theta2=89, edgecolor='Black', lw=4.5,zorder=0, alpha = alpha)) #Top Right
+    ax.add_artist(mpl.patches.Arc((-100+board_radius+.1 , (85/2)-board_radius), board_radius * 2, board_radius * 2 ,theta1=90, theta2=180, edgecolor='Black', lw=4.5,zorder=0, alpha = alpha)) #Top Left
+    ax.add_artist(mpl.patches.Arc((-100+board_radius+.1 , -(85/2)+board_radius-.1), board_radius * 2, board_radius * 2 ,theta1=180, theta2=270, edgecolor='Black', lw=4.5,zorder=0, alpha = alpha)) #Bottom Left
+    ax.add_artist(mpl.patches.Arc((100-board_radius , -(85/2)+board_radius-.1), board_radius * 2, board_radius * 2 ,theta1=270, theta2=360, edgecolor='Black', lw=4.5,zorder=0, alpha = alpha)) #Bottom Right
+
+    #[x1,x2],[y1,y2]
+    #Plot Boards
+    ax.plot([-100+board_radius,100-board_radius], [-42.5, -42.5], linewidth=4.5, color="Black",zorder=0, alpha = alpha) #Bottom
+    ax.plot([-100+board_radius-1,100-board_radius+1], [42.5, 42.5], linewidth=4.5, color="Black",zorder=0, alpha = alpha) #Top
+    ax.plot([-100,-100], [-42.5+board_radius, 42.5-board_radius], linewidth=4.5, color="Black",zorder=0, alpha = alpha) #Left
+    ax.plot([100,100], [-42.5+board_radius, 42.5-board_radius], linewidth=4.5, color="Black",zorder=0, alpha = alpha) #Right
+
+    #Goal Lines
+    adj_top = 4.6
+    adj_bottom = 4.5
+    ax.plot([89,89], [-42.5+adj_bottom, 42.5 - adj_top], linewidth=3, color="Red",zorder=0, alpha = alpha)
+    ax.plot([-89,-89], [-42.5+adj_bottom, 42.5 - adj_top], linewidth=3, color="Red",zorder=0, alpha = alpha)
+
+    #Plot Center Line
+    ax.plot([0,0], [-42.5, 42.5], linewidth=3, color="Red",zorder=0, alpha = alpha)
+    ax.plot(0,0, markersize = 6, color="Blue", marker = "o",zorder=0, alpha = alpha) #Center FaceOff Dots
+    ax.add_artist(mpl.patches.Circle((0, 0), radius = 33/2, facecolor='none', edgecolor="Blue", linewidth=3,zorder=0, alpha = alpha)) #Center Circle
+
+    #Zone Faceoff Dots
+    ax.plot(69,22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+    ax.plot(69,-22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+    ax.plot(-69,22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+    ax.plot(-69,-22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+
+    #Zone Faceoff Circles
+    ax.add_artist(mpl.patches.Circle((69, 22), radius = 15, facecolor='none', edgecolor="Red", linewidth=3,zorder=0, alpha = alpha))
+    ax.add_artist(mpl.patches.Circle((69,-22), radius = 15, facecolor='none', edgecolor="Red", linewidth=3,zorder=0, alpha = alpha))
+    ax.add_artist(mpl.patches.Circle((-69,22), radius = 15, facecolor='none', edgecolor="Red", linewidth=3,zorder=0, alpha = alpha))
+    ax.add_artist(mpl.patches.Circle((-69,-22), radius = 15, facecolor='none', edgecolor="Red", linewidth=3,zorder=0, alpha = alpha))
+
+    #Neutral Zone Faceoff Dots
+    ax.plot(22,22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+    ax.plot(22,-22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+    ax.plot(-22,22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+    ax.plot(-22,-22, markersize = 6, color="Red", marker = "o",zorder=0, alpha = alpha)
+
+    #Plot Blue Lines
+    ax.plot([25,25], [-42.5, 42.5], linewidth=2, color="Blue",zorder=0, alpha = alpha)
+    ax.plot([-25,-25], [-42.5, 42.5], linewidth=2, color="Blue",zorder=0, alpha = alpha)
+
+    #Goalie Crease
+    ax.add_artist(mpl.patches.Arc((89, 0), 6,6,theta1=90, theta2=270,  facecolor="Blue", edgecolor='Red', lw=2,zorder=0, alpha = alpha))
+    ax.add_artist(mpl.patches.Arc((-89, 0), 6,6, theta1=270, theta2=90, facecolor="Blue", edgecolor='Red', lw=2,zorder=0, alpha = alpha))
+
+    #Goal
+    ax.add_artist(mpl.patches.Rectangle((89, 0 - (4/2)), 2, 4, lw=2, color='Red',fill=False,zorder=0, alpha = alpha))
+    ax.add_artist(mpl.patches.Rectangle((-89 - 2, 0 - (4/2)), 2, 4, lw=2, color='Red',fill=False,zorder=0, alpha = alpha))
+
+    if plot_half == False:
+        # Set axis limits
+        ax.set_xlim(-101, 101)
+        ax.set_ylim(-43, 43)
+
+    elif plot_half == True:
+        # Set axis limits
+        ax.set_xlim(-0.5, 100.5)
+        ax.set_ylim(-43, 43)
+
+    # Remove axis labels
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+
+    # Remove axis ticks
+    ax.xaxis.set_ticks_position('none')
+    ax.yaxis.set_ticks_position('none')
+
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
+    return fig
 
 def normalize_shot_coordinates(input_df):
     # Normalize x & y coordinates such that when x is negative, flip x and y to force to be shooting "right"
@@ -45,8 +146,8 @@ def create_xg_array(data, is_smooth = True):
     return xgoals
 
 def normalize_xg_dataframe_by_chunk(chunksize=100000):
-    raw_filename = 'data/bq_results/202202_player_shots.csv'
-    normalized_filename = 'data/shots_xg/202202_player_shots_normalized.csv'
+    raw_filename = 'app/assets/csv/bigquery/202202_player_shots.csv'
+    normalized_filename = 'app/assets/csv/bigquery/202202_player_shots_normalized.csv'
     if os.path.exists(normalized_filename):
         os.remove(normalized_filename)
     # Read the data in chunks
@@ -102,7 +203,7 @@ def get_league_xg(filename, xg_strength_state_code, chunksize=100000):
 
 def plot_comparisons(player_name, comparison_type):
     xg_strength_state_code = 'ev'
-    normalized_filename = 'data/shots_xg/202202_player_shots_normalized.csv'
+    normalized_filename = 'app/assets/csv/bigquery/202202_player_shots_normalized.csv'
 
     # Always fetch the player XG
     player_xg = get_player_xg(normalized_filename, xg_strength_state_code, player_name)
@@ -127,11 +228,11 @@ def plot_comparisons(player_name, comparison_type):
     }
 
     # Create the rink
-    rink = create_rink()
-    rink.savefig('dashapp/images/rink_img.png', format='png', dpi=300, transparent=True)
+    # rink = create_rink_figure()
+    # rink.savefig('dashapp/images/rink_img.png', format='png', dpi=300, transparent=True)
 
     # Load the images
-    rink_img = Image.open('dashapp/images/rink_img.png')
+    rink_img = Image.open('app/assets/images/rink.png')
 
     # Set the min and max values for the color scale
     if abs(data_min) > data_max:
@@ -211,106 +312,47 @@ def plot_comparisons(player_name, comparison_type):
     # Show the interactive plot
     return fig
 
-# def get_shot_goal_data(player_names=[], season = None):
-#     """For each play resulting in a shot or goal, get the player name, event type, and the x y coordinates of the shot"""
+"""
+API related functions
+- get_api: Generic function to call an API and return the response
+- get_player_headshot: Get a player's headshot from the NHL API
+"""
+def get_api(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status() # Raise an exception for HTTP errors
+        return response
+    except requests.exceptions.RequestException as e:
+        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Error calling {url}: {e}")
+    except Exception as e:
+        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - An unexpected error occurred: {e}")
 
-#     # Match files with glob pattern
-#     pattern = os.path.join(f'.output/api_results/{season}', 'livefeed_*.jsonl')
-#     matching_files = glob.glob(pattern)
+def get_player_headshot(player_id, file_path = 'app/assets/csv/bigquery/2022_player_current_team.csv'):
+    """Summary: Get player headshots from the NHL API and parse them into a DataFrame."""
 
-#     # Set the event types of interest
-#     event_types = ['Shot','Goal']
+    # Logic to get the current player's team code
+    df1 = pd.read_csv(f'{file_path}')
+    df2 = df1[df1['player_id'] == player_id]
 
-#     # Coordinates D1
-#     play_coordinates = {}
-#     play_coordinates['Shot'] = {}
-#     play_coordinates['Shot']['x'] = []
-#     play_coordinates['Shot']['y'] = []
-#     play_coordinates['Goal'] = {}
-#     play_coordinates['Goal']['x'] = []
-#     play_coordinates['Goal']['y'] = []
+    # Check if any rows match the filter
+    if not df2.empty:
+        # Get the value from the "team_code" column (assuming there's only one matching row)
+        team_code = df2.iloc[0]['team_code']
+        print(f"The team code for player ID {player_id} is {team_code}")
+    else:
+        team_code = 'NA'
+        print(f"No matching rows found for player ID {player_id}")    # Set the base URL for the player headshots
 
-#     # Coordinates D2
-#     play_coordinates_for_dataframe = {
-#         "game_id": [],
-#         "play_id": [],
-#         "x_coord":[],
-#         "y_coord":[],
-#         "event":[],
-#         "event_type":[],
-#         "event_desc": [],
-#         "period": [],
-#         "period_time": [],
-#         "player_name": [],
-#         "player_id": [],
-#         "player_type": []
-#         }
+    # Now, make the url
+    url = F'https://assets.nhle.com/mugs/nhl/20222023/{team_code}/{player_id}.png'.format(player_id)
 
-#     # For each matching file
-#     for file_path in matching_files:
+    # Send an HTTP GET request to fetch the image data
+    response = get_api(url.format(player_id=player_id))
 
-#         # Open the file
-#         with jsonlines.open(file_path, 'r') as file:
+    # Convert the response content to bytes
+    image_data = BytesIO(response.content)
 
-#             # Each line in the file represents a single game
-#             for jsonline in file:
+    # Open the image using PIL
+    img = Image.open(image_data)
 
-#                 # Skip if no live data for current game
-#                 if 'liveData' not in jsonline.keys():
-#                     continue
-
-#                 # Get the plays from each game
-#                 plays = jsonline['liveData']['plays']['allPlays']
-#                 game_id = jsonline['gamePk']
-
-#                 # Loop over each play in the current game
-#                 for play in plays:
-
-#                     # Look for players in the play
-#                     if 'players' in play:
-
-#                         for player in play['players']:
-
-#                             if len(player_names) > 0:
-
-#                                 # If player names are specified, skip any plays that don't involve those players
-#                                 if not any(player_name in player['player']['fullName'] for player_name in player_names):
-#                                     continue
-
-#                             if player['playerType'] in ['Shooter', 'Scorer']:
-#                                 player_type = player['playerType']
-#                                 player_id = player['player']['id']
-#                                 player_name = player['player']['fullName']
-
-#                                 for event in event_types:
-#                                     # Look for Shot and Goal events that have coordinates
-#                                     if play['result']['event'] in event and play['coordinates']:
-#                                         # Save the coordinates to d1
-#                                         play_coordinates[event]['x'].append(play['coordinates']['x'])
-#                                         play_coordinates[event]['y'].append(play['coordinates']['y'])
-#                                         # Save the coordinates to d2
-#                                         play_coordinates_for_dataframe["game_id"].append(game_id)
-#                                         play_coordinates_for_dataframe["x_coord"].append(play['coordinates']['x'])
-#                                         play_coordinates_for_dataframe["y_coord"].append(play['coordinates']['y'])
-#                                         play_coordinates_for_dataframe["event"].append(play['result']['event'])
-#                                         play_coordinates_for_dataframe["event_type"].append(play['result'].get('secondaryType', None))
-#                                         play_coordinates_for_dataframe["event_desc"].append(play['result']['description'])
-#                                         play_coordinates_for_dataframe["period"].append(play['about']['period'])
-#                                         play_coordinates_for_dataframe["period_time"].append(play['about']['periodTime'])
-#                                         play_coordinates_for_dataframe["play_id"].append(play['about']['eventIdx'])
-#                                         play_coordinates_for_dataframe["player_name"].append(player_name)
-#                                         play_coordinates_for_dataframe["player_id"].append(player_id)
-#                                         play_coordinates_for_dataframe["player_type"].append(player_type)
-
-#     # Convert to pandas dataframe
-#     play_coordinates_df = pd.DataFrame.from_dict(play_coordinates_for_dataframe)
-
-#     # Drop dups
-#     play_coordinates_dedupe_df = play_coordinates_df.drop_duplicates()
-
-#     # Add some features
-#     play_coordinates_dedupe_df['goal'] = np.where(play_coordinates_dedupe_df['event']== 'Goal', 1, 0)
-#     play_coordinates_dedupe_df['league'] = 'NHL'
-
-#     # See data
-#     return play_coordinates, play_coordinates_dedupe_df
+    return img
