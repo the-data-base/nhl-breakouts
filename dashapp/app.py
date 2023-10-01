@@ -447,23 +447,24 @@ app.layout = html.Div([
     html.Div(
         id='player-image-div',
         children=html.Img(
-            id='player-image',
-            style={'height': '140px', 'width': 'auto', 'border-radius': '50%', 'background-color': 'white'},
+            id='player-image'
         )
     ),
 
     # Player card
     html.Div(
         id='player-info-div',
+        style={'text-align': 'center'},
         children=dbc.Row([
             html.Div([
                 html.H1(
-                    id='player-info-name'
+                    id='player-info-name',
+                    style={'white-space': 'nowrap'}
                 ),
-                html.Div(id='player-info-age'),
-                html.Div(id='player-info-team-name'),
-                html.Div(id='player-info-position'),
-                html.Div(id='player-info-shoots'),
+                html.Div(id='player-info-age', style={'display': 'inline-block'}),
+                html.Div(id='player-info-team-name', style={'display': 'inline-block'}),
+                html.Div(id='player-info-position', style={'display': 'inline-block'}),
+                html.Div(id='player-info-shoots', style={'display': 'inline-block'}),
                 html.P(id='player-info-cap')
             ]),
         ])
@@ -866,14 +867,8 @@ def set_player_headshot(player_name, df = ranks_cap_df_raw, player_name_col = 'p
 @callback(
     # Div components
     Output(component_id='player-image-div', component_property='style'),
-    Output(component_id='player-info-div', component_property='style'),
-    # Paragraph components
-    Output(component_id='player-info-name', component_property='style'),
-    Output(component_id='player-info-age', component_property='style'),
-    Output(component_id='player-info-team-name', component_property='style'),
-    Output(component_id='player-info-position', component_property='style'),
-    Output(component_id='player-info-shoots', component_property='style'),
-    Output(component_id='player-info-cap', component_property='style'),
+    # Headshot component
+    Output(component_id='player-image', component_property='style'),
     Input(component_id='player-name-dropdown', component_property='value'),
 )
 def set_player_card_colors(selected_player, df = ranks_cap_df_raw):
@@ -887,17 +882,12 @@ def set_player_card_colors(selected_player, df = ranks_cap_df_raw):
 
     # Div styles
     style_primary_div = {'background-color': primary_color, 'text-align': 'center'}
-    style_secondary_div = {'background-color': secondary_color, 'text-align': 'center'}
 
-    # Text styles
-    style_secondary_name = {'color': primary_color, 'white-space': 'nowrap'}
-    style_secondary_age = {'color': primary_color, 'display': 'inline-block'}
-    style_secondary_team_name = {'color': primary_color, 'display': 'inline-block'}
-    style_secondary_position = {'color': primary_color, 'display': 'inline-block'}
-    style_secondary_shoots = {'color': primary_color, 'display': 'inline-block'}
-    style_secondary_cap = {'color': primary_color}
+    # Headshot style
+    style_headshot = {'height': '140px', 'width': 'auto', 'border-radius': '50%', 'background-color': 'white', 'border': f'5px solid {secondary_color}'}
 
-    return style_primary_div, style_secondary_div, style_secondary_name, style_secondary_age, style_secondary_team_name, style_secondary_position, style_secondary_shoots, style_secondary_cap
+
+    return style_primary_div, style_headshot
 
 
 # Run the app
