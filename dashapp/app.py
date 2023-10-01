@@ -385,42 +385,6 @@ cards = html.Div([
 
 ])
 
-#-- Team logo mapping
-team_image_mapping = {
-    'ANA': 'ANA.png',
-    'ARI': 'ARI.png',
-    'BOS': 'BOS.png',
-    'BUF': 'BUF.png',
-    'CGY': 'CGY.png',
-    'CAR': 'CAR.png',
-    'CHI': 'CHI.png',
-    'COL': 'COL.png',
-    'CBJ': 'CBJ.png',
-    'DAL': 'DAL.png',
-    'DET': 'DET.png',
-    'EDM': 'EDM.png',
-    'FLA': 'FLA.png',
-    'LAK': 'LAK.png',
-    'MIN': 'MIN.png',
-    'MTL': 'MTL.png',
-    'NSH': 'NSH.png',
-    'NJD': 'NJD.png',
-    'NYI': 'NYI.png',
-    'NYR': 'NYR.png',
-    'OTT': 'OTT.png',
-    'PHI': 'PHI.png',
-    'PIT': 'PIT.png',
-    'SEA': 'SEA.png',
-    'SJS': 'SJS.png',
-    'STL': 'STL.png',
-    'TBL': 'TBL.png',
-    'TOR': 'TOR.png',
-    'VAN': 'VAN.png',
-    'VGK': 'VGK.png',
-    'WSH': 'WSH.png',
-    'WPG': 'WPG.png',
-}
-
 # Define custom CSS for the menu outline
 menu_outline_style = {
     'border': '1px solid rgba(255, 255, 255, 0.5)',  # Light border
@@ -846,7 +810,7 @@ def set_player_stats1(selected_player, df=ranks_cap_df_raw, player_name_col = 'p
                 html.P(
                     children=[
                         html.Img(
-                        src='https://assets.nhle.com/logos/nhl/svg/{}_dark.svg'.format(stats['team_code']),
+                        src=app.get_asset_url('logos/teams/{}.png'.format(stats['team_code'])),
                         height=18
                         ),
                         html.P(' {} |'.format(stats['team_code']), style={'display': 'inline-block', 'padding-right': 5, 'margin-bottom': 0})
