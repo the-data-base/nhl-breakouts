@@ -877,7 +877,7 @@ def set_player_headshot(player_name, df = ranks_cap_df_raw, player_name_col = 'p
     Input(component_id='player-name-dropdown', component_property='value'),
 )
 def set_player_card_colors(selected_player, df = ranks_cap_df_raw):
-    stats = get_player_card(selected_player, df)
+    stats = get_player_card1(selected_player, df, player_name_col = 'player_name')
     colors = pd.read_csv('dashapp/assets/colors/team_colors.csv')
     # filter team_colors dataframe for the selected player's team
     team_colors = colors[colors['team_code'] == stats['team_code']]
