@@ -419,6 +419,9 @@ normalize_xg_dataframe_by_chunk()
 #-- Initialize the app
 app = Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])  # Use the DARKLY theme for dark mode
 
+#-- Initialize the server
+server = app.server
+
 #-- Define app layout
 app.layout = html.Div([
 
