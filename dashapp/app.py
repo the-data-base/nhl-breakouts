@@ -13,6 +13,7 @@ import dash_mantine_components as dmc
 from datetime import date, datetime
 import base64
 import numpy as np
+import re
 
 #-- Modules
 from dashapp.utils.extract.extract import get_player_headshot
@@ -26,34 +27,188 @@ from dashapp.utils.transform.transform import plot_comparisons, normalize_xg_dat
 def read_data(file_path):
     return pd.read_csv(file_path, delimiter=',')
 
+#-- Function to replace special characters found in player_full_name
+def replace_special_chars(input_str):
+  special_chars = {
+      'á': 'a', 'Á': 'A', 'ä': 'a', 'Ä': 'A', 'é': 'e', 'É': 'E', 'è': 'e', 'È': 'E', 'ê': 'e', 'Ê': 'E',
+      'í': 'i', 'Í': 'I', 'ï': 'i', 'Ï': 'I', 'ó': 'o', 'Ó': 'O', 'ö': 'o', 'Ö': 'O', 'ô': 'o', 'Ô': 'O',
+      'ú': 'u', 'Ú': 'U', 'ü': 'u', 'Ü': 'U', 'û': 'u', 'Û': 'U', 'ñ': 'n', 'Ñ': 'N', 'ç': 'c', 'Ç': 'C',
+      'ß': 'ss', 'Æ': 'AE', 'æ': 'ae', 'Ø': 'O', 'ø': 'o', 'ł': 'l', 'Ł': 'L', 'ń': 'n', 'Ń': 'N',
+      'ś': 's', 'Ś': 'S', 'ć': 'c', 'Ć': 'C', 'ź': 'z', 'Ź': 'Z', 'ż': 'z', 'Ż': 'Z', 'ğ': 'g', 'Ğ': 'G',
+      'şı': 'si', 'Ş': 'Si', 'ķ': 'k', 'Ķ': 'K', 'š': 's', 'Š': 'S', 'č': 'c', 'Č': 'C', 'ž': 'z', 'Ž': 'Z',
+      'ň': 'n', 'Ň': 'N', 'ř': 'r', 'Ř': 'R', 'ý': 'y', 'Ý': 'Y', 'ů': 'u', 'Ů': 'U', 'ţ': 't', 'Ţ': 'T',
+      'ă': 'a', 'Ă': 'A', 'ş': 's', 'Ş': 'S', 'ď': 'd', 'Ď': 'D', 'ř': 'r', 'Ř': 'R', 'ť': 't', 'Ť': 'T',
+      'ĺ': 'l', 'Ĺ': 'L', 'ć': 'c', 'Ć': 'C', 'đ': 'd', 'Đ': 'D', 'ŕ': 'r', 'Ŕ': 'R', 'ľ': 'l', 'Ľ': 'L',
+      'ŝ': 's', 'Ŝ': 'S', 'ĥ': 'h', 'Ĥ': 'H', 'ĵ': 'j', 'Ĵ': 'J', 'ŵ': 'w', 'Ŵ': 'W', 'ŷ': 'y', 'Ŷ': 'Y',
+      'ẑ': 'z', 'Ẑ': 'Z', 'ơ': 'o', 'Ơ': 'O', 'ī': 'i', 'Ī': 'I', 'ū': 'u', 'Ū': 'U', 'ț': 't', 'Ț': 'T',
+      'ș': 's', 'Ș': 'S'
+  }
+  # Use a regular expression to match and replace special characters
+  pattern = re.compile("|".join(map(re.escape, special_chars.keys())))
+  return pattern.sub(lambda match: special_chars[match.group(0)], input_str)
+
+#-- Function to create a new player name based on their first initial + last name to help join names spent differently
+def format_player_name(player_name):
+    name_parts = player_name.split()
+    if len(name_parts) >= 2:
+        first_initial = name_parts[0][0].upper()
+        last_name = name_parts[-1]
+        formatted_name = first_initial + ' ' + last_name
+    else:
+        formatted_name = player_name.replace('.', '')  # Remove dots if present
+    return formatted_name
+
+#-- Function (custom data cleaning) to cleanup cols after joining ranks df to salary cap data
+def col_cleanup(df, suffix, keep_cols):
+    # Replace column values
+    for col in ['Active', 'Contract Start', 'Contract End', 'Term Remaining', 'Cap Hit', 'AAV']:
+        col_nam = f'{col}{suffix}'
+        df[col] = df[col_nam]
+
+    # Keep specific columns
+    df = df[keep_cols]
+
+    return df
+
 #-- Function to prepare the player ranks dataframe (all)
 def prepare_clean_ranks_table(df, sort_col = 'EV XG'):
-    df2 = df[['player_name', 'primary_position_name', 'season', 'season_window', 'gp', 'toi_m', 'EV XG', 'EV Offense', 'EV Defense','Finishing','Gx60', 'A1x60', 'PP','PK', 'Penalty']]
-    df2 = df2.rename(columns={'player_name': 'Player Name', 'primary_position_name': 'Position', 'season': 'Season','season_window': 'Season Window',  'toi_m': 'TOI (mins)', 'gp':'GP'})
+    df['player_name'] = df['player_name'].apply(replace_special_chars)
+    df2 = df[['player_name', 'primary_position_name', 'current_team_code', 'birth_date', 'shoots_catches', 'season', 'season_window', 'gp', 'toi_m', 'EV XG', 'EV Offense', 'EV Defense','Finishing','Gx60', 'A1x60', 'PP','PK', 'Penalty']]
+    df2 = df2.rename(columns={'player_name': 'Player Name',
+                              'primary_position_name': 'Position',
+                              'current_team_code': 'Current Team',
+                              'birth_date': 'DOB',
+                              'shoots_catches': 'Shoots',
+                              'season': 'Season',
+                              'season_window': 'Season Window',
+                              'toi_m': 'TOI (mins)',
+                              'gp':'GP'})
     float_columns = df2.select_dtypes(include=['float64']).columns
     df2[float_columns] = df2[float_columns].round(1)
     return df2.sort_values(by=f'{sort_col}', ascending = False)
 
 #-- Function to prepare the player ranks dataframe (all)
 def prepare_clean_cap_table(df):
-    df2 = df[['PLAYER_FULL_NAME', 'SIGNING_YEAR', 'EXPIRY_YEAR', 'YEARS_LEFT', 'CAP_HIT2', 'AAV2']]
-    df2 = df2.rename(columns={'PLAYER_FULL_NAME': 'Player Name', 'SIGNING_YEAR': 'Contract Year', 'EXPIRY_YEAR': 'Contract Expiry', 'YEARS_LEFT': 'Term Remaining', 'CAP_HIT2': 'Cap Hit', 'AAV2': 'AAV'})
-
+    df2 = df[['player_full_name', 'active_flag', 'team', 'signing_date', 'exp_year', 'years_left', 'cap_hit_format','aav_format']]
+    df2 = df2.rename(columns={'player_full_name': 'Player Name',
+                              'active_flag': 'Active',
+                              'team': 'Current Team',
+                              'signing_date': 'Contract Start',
+                              'exp_year': 'Contract End',
+                              'years_left': 'Term Remaining',
+                              'cap_hit_format': 'Cap Hit',
+                              'aav_format': 'AAV'})
     return df2
 
 #-- Function to join cap data to ranks table
-def join_ranks_cap_data(df1, df2, left_key = "Player Name", right_key = "Player Name", how = "left"):
-    joined_table = pd.merge(df1, df2, left_on=left_key, right_on=right_key, how=how)
-    return joined_table
+def join_ranks_cap_data_raw(df1, df2, keep_cols = ['player_id', 'player_name', 'game_type', 'season', 'season_window',
+'primary_position_name', 'primary_position_type', 'birth_date',
+'nationality', 'height', 'weight', 'primary_number', 'shoots_catches',
+'current_team_id', 'current_team_full_name', 'current_team_name',
+'current_team_code', 'Avg TOI', 'TOI', 'EV XG', 'EV Offense',
+'EV Defense', 'PP', 'PK', 'Finishing', 'Gx60', 'XGx60', 'A1x60',
+'Penalty', 'EV XG 2', 'EV Offense 2', 'EV Defense 2', 'PP 2', 'PK 2',
+'Finishing 2', 'Gx60 2', 'A1x60 2', 'Penalty 2', 'Competition',
+'Teammates', 'gp', 'xg_diff', 'xg_ev_diff', 'xgf_ev', 'xga_ev',
+'xg_pp_diff', 'xg_sh_diff', 'gae', 'goals_per60', 'a1_per60', 'xgf',
+'xga', 'goals', 'a1', 'toi_m', 'avg_toi_m', 'xg_ev_diff_per60',
+'xgf_ev_per60', 'xga_ev_per60', 'xg_pp_diff_per60', 'xg_sh_diff_per60',
+'gae_per60', 'minor_pim_diff_per60','Active', 'Contract Start', 'Contract End', 'Term Remaining', 'Cap Hit', 'AAV'], verbose = False):
+
+    #... remove special chars in player_name
+    df1['player_name'] = df1['player_name'].apply(replace_special_chars)
+
+    # ...make a second player name key to join
+    df1['join_player_name'] = df1['player_name'].apply(format_player_name)
+    df2['join_player_name'] = df2['Player Name'].apply(format_player_name)
+
+    # ...left join df1 to df2 on "player_name" = "player_full_name" and "team_code" = "team_code"
+    merged_df1 = pd.merge(df1, df2, how='left', left_on=['player_name', 'current_team_code'], right_on=['Player Name', 'Current Team'], suffixes=('', '_1'))
+    matched_df1 = merged_df1[merged_df1['AAV'].notnull()]
+    unmatched_df1 = merged_df1[merged_df1['AAV'].isnull()]
+
+    # ...left join df1 to df2 on "player_name" = "player_full_name" and "team_code" = "team_code"
+    merged_df2 = pd.merge(unmatched_df1, df2, how='left', left_on=['player_name'], right_on = ['Player Name'], suffixes=('', '_2'))
+    matched_df2 = merged_df2[merged_df2['AAV_2'].notnull()]
+    unmatched_df2 = merged_df2[merged_df2['AAV_2'].isnull()]
+
+    # ...left join df1 to df2 on "player_name" = "player_full_name" and "team_code" = "team_code"
+    merged_df3 = pd.merge(unmatched_df2, df2, how='left', left_on=['join_player_name'], right_on = ['join_player_name'], suffixes=('', '_3'))
+    matched_df3 = merged_df3[merged_df3['AAV_3'].notnull()]
+    unmatched_df3 = merged_df3[merged_df3['AAV_3'].isnull()]
+
+    # ...run custom function cleaner
+    matched_df1_clean = matched_df1[keep_cols]
+    matched_df2_clean = col_cleanup(matched_df2, "_2", keep_cols)
+    matched_df3_clean = col_cleanup(matched_df3, "_3", keep_cols)
+    unmatched_df3_clean = unmatched_df3[keep_cols]
+
+    #... finally...
+    final_df = pd.concat([matched_df1_clean, matched_df2_clean, matched_df3_clean, unmatched_df3_clean])
+
+    #... user message
+    if verbose == True:
+        print(f'rows: {len(final_df)}, actives: {int((final_df["Active"] == 1).sum())}, free_agents: {int((final_df["Active"] == 0).sum())}, inactives: {final_df["AAV"].isna().sum()}')
+
+    return final_df
 
 #-- Function to partition out ranks_df by season & season window
 def season_window_partitions(df, sort_col = 'EV XG'):
     df['Season'] = np.where(df['Season Window'] == 'Last 3 seasons', 'Last 3 Seasons', df['Season'])
     ranks_df1 = df[df['Season Window'] == 'Last 3 seasons'].sort_values(by=f'{sort_col}', ascending = False)
     ranks_df2 = df[df['Season Window'] == '1 season'].sort_values(by=f'{sort_col}', ascending = False)
-    ranks_df1 = ranks_df1.drop(columns=['Season Window'])
-    ranks_df2 = ranks_df2.drop(columns=['Season Window'])
+    ranks_df1 = ranks_df1.drop(columns=['Season Window', 'DOB', 'Shoots', 'join_player_name'])
+    ranks_df2 = ranks_df2.drop(columns=['Season Window', 'DOB', 'Shoots', 'join_player_name'])
+
     return ranks_df1, ranks_df2
+
+#-- Function to join cap data to ranks table
+def join_ranks_cap_data(df1, df2, keep_cols = ['Player Name', 'Position', 'Current Team', 'DOB', 'Shoots', 'Season', 'Season Window', 'EV XG', 'EV Offense', 'EV Defense', 'Finishing', 'Gx60', 'A1x60', 'PP', 'PK', 'Penalty', 'TOI (mins)', 'GP', 'Active', 'Contract Start', 'Contract End', 'Term Remaining', 'Cap Hit', 'AAV'], verbose = False):
+
+    # ...make a second player name key to join
+    df1['join_player_name'] = df1['Player Name'].apply(format_player_name)
+    df2['join_player_name'] = df2['Player Name'].apply(format_player_name)
+
+    # ...left join df1 to df2 on "player_name" = "player_full_name" and "team_code" = "team_code"
+    merged_df1 = pd.merge(df1, df2, how='left', left_on=['Player Name', 'Current Team'], right_on=['Player Name', 'Current Team'], suffixes=('', '_1'))
+    matched_df1 = merged_df1[merged_df1['AAV'].notnull()]
+    unmatched_df1 = merged_df1[merged_df1['AAV'].isnull()]
+
+    # ...left join df1 to df2 on "player_name" = "player_full_name" and "team_code" = "team_code"
+    merged_df2 = pd.merge(unmatched_df1, df2, how='left', left_on=['Player Name'], right_on = ['Player Name'], suffixes=('', '_2'))
+    matched_df2 = merged_df2[merged_df2['AAV_2'].notnull()]
+    unmatched_df2 = merged_df2[merged_df2['AAV_2'].isnull()]
+
+    # ...left join df1 to df2 on "player_name" = "player_full_name" and "team_code" = "team_code"
+    merged_df3 = pd.merge(unmatched_df2, df2, how='left', left_on=['join_player_name'], right_on = ['join_player_name'], suffixes=('', '_3'))
+    matched_df3 = merged_df3[merged_df3['AAV_3'].notnull()]
+    unmatched_df3 = merged_df3[merged_df3['AAV_3'].isnull()]
+
+    # ...run custom function cleaner
+    matched_df1_clean = matched_df1[keep_cols]
+    matched_df2_clean = col_cleanup(matched_df2, "_2", keep_cols)
+    matched_df3_clean = col_cleanup(matched_df3, "_3", keep_cols)
+    unmatched_df3_clean = unmatched_df3[keep_cols]
+
+    #... finally...
+    final_df = pd.concat([matched_df1_clean, matched_df2_clean, matched_df3_clean, unmatched_df3_clean])
+
+    #... user message
+    if verbose == True:
+        print(f'rows: {len(final_df)}, actives: {int((final_df["Active"] == 1).sum())}, free_agents: {int((final_df["Active"] == 0).sum())}, inactives: {final_df["AAV"].isna().sum()}')
+
+    return final_df
+
+#-- Function to partition out ranks_df by season & season window
+def season_window_partitions(df, sort_col = 'EV XG'):
+    df['Season'] = np.where(df['Season Window'] == 'Last 3 seasons', 'Last 3 Seasons', df['Season'])
+    ranks_df1 = df[df['Season Window'] == 'Last 3 seasons'].sort_values(by=f'{sort_col}', ascending = False)
+    ranks_df2 = df[df['Season Window'] == '1 season'].sort_values(by=f'{sort_col}', ascending = False)
+    ranks_df1 = ranks_df1.drop(columns=['Season Window', 'DOB', 'Shoots', 'join_player_name'])
+    ranks_df2 = ranks_df2.drop(columns=['Season Window', 'DOB', 'Shoots', 'join_player_name'])
+
+    return ranks_df1, ranks_df2
+
 
 #-- Function to create a card with given title and value
 def create_card(title):
@@ -82,27 +237,35 @@ def calculate_age(born):
     today = date.today()
     return today.year - born_dt.year - ((today.month, today.day) < (born_dt.month, born_dt.day))
 
-#-- Function to get information out of player attributes out of ranks df and store as a dictionary for player cards downstream
-def get_player_card(player_name, df):
-    player_df = df[df['player_name'] == player_name]
+#-- Function to get information out of player attributes out of ranks df and store as a dictionary for player cards downstream (raw ranks needed)
+def get_player_card1(player_name, df, player_name_col):
+    player_df = df[df[player_name_col] == player_name]
     return {
         'id': player_df['player_id'].values[0],
         'name': player_name,
         'age': calculate_age(player_df['birth_date'].values[0]),
-        'country': player_df['nationality'].values[0],
         'position': player_df['primary_position_name'].values[0],
         'shoots': player_df['shoots_catches'].values[0],
         'number': player_df['primary_number'].values[0],
         'height': player_df['height'].values[0],
         'weight': player_df['weight'].values[0],
         'team_code': player_df['current_team_code'].values[0],
-        'team_name': player_df['current_team_name'].values[0],
+        'team_name': player_df['current_team_name'].values[0]
+    }
+#-- Function to get information out of player attributes out of ranks df and store as a dictionary for player cards downstream (joined cap needed)
+def get_player_card2(player_name, df, player_name_col):
+    player_df = df[df[player_name_col] == player_name]
+    return {
+        'name': player_name,
+        'contract_start': player_df['Contract Start'].values[0],
+        'contract_end': player_df['Contract End'].values[0],
         'cap_hit': player_df['Cap Hit'].values[0],
         'aav': player_df['AAV'].values[0],
         'term': player_df['Term Remaining'].values[0]
     }
 
-#-- Fcuntion to get information out of player metrics out of ranks df and store as a dictionary for player cards downstream
+
+#-- Function to get information out of player metrics out of ranks df and store as a dictionary for player cards downstream
 def get_player_stats(player_name, df):
     player_df = df[df['Player Name'] == player_name]
     stats = {
@@ -123,8 +286,8 @@ def get_player_stats(player_name, df):
     return stats
 
 #-- Function to get player attributes from ranks_df
-def set_player_dropdown_options(df):
-    return [{'label': player, 'value': player} for player in df['player_name'].unique()]
+def set_player_dropdown_options(df, player_name_col):
+    return [{'label': player, 'value': player} for player in df[player_name_col].unique()]
 
 #-- Function to create a multi-line chart
 def create_metric_season_trend_viz(df, x_column='Season', y_columns=['EV Offense', 'EV Defense', 'Finishing'], y_range=[0, 100], player_name='Connor McDavid'):
@@ -177,16 +340,17 @@ def create_metric_season_trend_viz(df, x_column='Season', y_columns=['EV Offense
 
 #-- Cap data
 #... raw
-cap_df_raw = read_data('data/capfriendly/capfriendly_data2.csv')
+cap_df_raw = read_data('data/capfriendly/capfriendly_data_clean.csv')
 #... clean
-cap_df_clean = prepare_clean_cap_table(cap_df_raw)
+cap_df = prepare_clean_cap_table(cap_df_raw)
 
 #-- Player ranks data
 #... raw
 ranks_df_raw = read_data('data/bq_results/202202_player_ranks.csv')
-ranks_cap_df_raw = join_ranks_cap_data(ranks_df_raw, cap_df_clean, left_key = 'player_name', right_key = 'Player Name')
+ranks_cap_df_raw = join_ranks_cap_data_raw(ranks_df_raw, cap_df)
 #... clean
 ranks_df = prepare_clean_ranks_table(ranks_df_raw, "EV XG")
+ranks_cap_df = join_ranks_cap_data(ranks_df, cap_df)
 #... final
 ranks_3y_df, ranks_1y_df = season_window_partitions(ranks_df, "EV XG")
 
@@ -360,7 +524,7 @@ app.layout = html.Div([
                 html.Label('Player:', style={'color': colors['text'], 'font-weight': 'bold', 'text-align': 'center'}),
                 dcc.Dropdown(
                     id='player-name-dropdown',
-                    options=set_player_dropdown_options(ranks_df_raw),
+                    options=set_player_dropdown_options(ranks_df, "Player Name"),
                     value='Connor McDavid',
                     clearable=False
                 )],
@@ -669,8 +833,8 @@ def update_metric_season_trend(selected_player, df = ranks_1y_df):
     Output(component_id='player-info-shoots', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_stats1(selected_player, df = ranks_cap_df_raw):
-    stats = get_player_card(selected_player, df)
+def set_player_stats1(selected_player, df=ranks_cap_df_raw, player_name_col = 'player_name'):
+    stats = get_player_card1(selected_player, df, player_name_col)
     components = []
     for stat in ['age', 'team_name', 'position', 'shoots']:
         if stat == 'age':
@@ -704,15 +868,15 @@ def set_player_stats1(selected_player, df = ranks_cap_df_raw):
     Output(component_id='player-stats-2', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_stats2(selected_player, df = ranks_cap_df_raw):
-    stats = get_player_card(selected_player, df)
+def set_player_stats2(selected_player, df = ranks_cap_df, player_name_col = 'Player Name'):
+    stats = get_player_card2(selected_player, df, player_name_col)
     return f'Cap: {stats["cap_hit"]} x {round(stats["term"])}'
 
 @callback(
     Output(component_id='player-name', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_name(selected_player, df = ranks_df_raw):
+def set_player_name(selected_player, df = ranks_cap_df_raw):
     return selected_player
 
 @callback(
@@ -742,8 +906,8 @@ def plot_rink(player_name, comparison_type):
     Output(component_id='player-image', component_property='src'),
     Input(component_id='player-name-dropdown', component_property='value')
 )
-def set_player_headshot(player_name, df = ranks_cap_df_raw):
-    stats = get_player_card(player_name, df)
+def set_player_headshot(player_name, df = ranks_cap_df_raw, player_name_col = 'player_name'):
+    stats = get_player_card1(player_name, df, player_name_col)
     return get_player_headshot(stats['id'])
 
 # Run the app
