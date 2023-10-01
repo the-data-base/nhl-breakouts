@@ -44,7 +44,9 @@ def create_xg_array(data, is_smooth = True):
 
     return xgoals
 
-def normalize_xg_dataframe_by_chunk(raw_filename, normalized_filename, chunksize=50000):
+def normalize_xg_dataframe_by_chunk(chunksize=100000):
+    raw_filename = 'data/bq_results/202202_player_shots.csv'
+    normalized_filename = 'data/shots_xg/202202_player_shots_normalized.csv'
     if os.path.exists(normalized_filename):
         os.remove(normalized_filename)
     # Read the data in chunks
@@ -71,7 +73,7 @@ def normalize_xg_dataframe_by_chunk(raw_filename, normalized_filename, chunksize
         normalized_df.to_csv(normalized_filename, mode='a', header=True, index=False)
     return True
 
-def get_player_xg(filename, xg_strength_state_code, player_name, chunksize=50000):
+def get_player_xg(filename, xg_strength_state_code, player_name, chunksize=100000):
     df = pd.read_csv(filename, delimiter= ',', chunksize=chunksize)
     player_df = pd.DataFrame()
     for i, chunk in enumerate(df):
@@ -84,7 +86,7 @@ def get_player_xg(filename, xg_strength_state_code, player_name, chunksize=50000
 
     return player_xgoals
 
-def get_league_xg(filename, xg_strength_state_code, chunksize=50000):
+def get_league_xg(filename, xg_strength_state_code, chunksize=100000):
     df = pd.read_csv(filename, delimiter= ',', chunksize=chunksize)
     league_df = pd.DataFrame()
     for i, chunk in enumerate(df):
@@ -98,18 +100,31 @@ def get_league_xg(filename, xg_strength_state_code, chunksize=50000):
 
     return league_xgoals
 
-def plot_comparisons(player_name):
+def plot_comparisons(player_name, comparison_type):
     xg_strength_state_code = 'ev'
-    raw_filename = 'data/bq_results/202202_player_shots.csv'
     normalized_filename = 'data/shots_xg/202202_player_shots_normalized.csv'
 
-    # Normalize the raw data by chunks
-    normalize_xg_dataframe_by_chunk(raw_filename, normalized_filename)
-
-    # Read xgoals from player and league csv files
-    all_xg = get_league_xg(normalized_filename, xg_strength_state_code)
+    # Always fetch the player XG
     player_xg = get_player_xg(normalized_filename, xg_strength_state_code, player_name)
-    new_diff = player_xg - all_xg
+
+    # If comparison type is against league, fetch the league XG
+    if comparison_type == 'against_league':
+        all_xg = get_league_xg(normalized_filename, xg_strength_state_code)
+        new_diff = player_xg - all_xg
+        data_min = new_diff.min()
+        data_max = new_diff.max()
+
+    # If comparison type is against individual, use the player XG
+    elif comparison_type == 'individual':
+        data_min = player_xg.min()
+        data_max = player_xg.max()
+        new_diff = player_xg
+
+    # Legend header map
+    legend_header_map = {
+        'against_league': 'Difference vs. League XG',
+        'individual': 'Individual XG'
+    }
 
     # Create the rink
     rink = create_rink()
@@ -118,19 +133,13 @@ def plot_comparisons(player_name):
     # Load the images
     rink_img = Image.open('dashapp/images/rink_img.png')
 
-    # Calculate the position for the image (adjust as needed)
-    image_x = 0.1  # Adjust the x-coordinate
-    image_y = 1.15   # Adjust the y-coordinate
-
-    data_min = new_diff.min()
-    data_max = new_diff.max()
-    mid_val = new_diff.mean()
-
+    # Set the min and max values for the color scale
     if abs(data_min) > data_max:
         data_max = data_min * -1
     elif data_max > abs(data_min):
         data_min = data_max * -1
 
+    # Create a meshgrid
     x, y = np.meshgrid(np.linspace(0, 89, 100), np.linspace(-42.5, 42.5, 85))
 
     meshgrid_df = pd.DataFrame({'x': x.flatten(), 'y': y.flatten(), 'z': new_diff.flatten()})
@@ -141,7 +150,6 @@ def plot_comparisons(player_name):
     # Create a scatter plot using plotly
     fig = px.scatter(meshgrid_df, x='x', y='y', color='z',
                     color_continuous_scale='RdBu_r',
-                    title=f'{player_name} vs League xGoal',
                     labels={'z': 'Difference'},
                     template='plotly',
                     range_color=[data_min, data_max])
@@ -163,8 +171,9 @@ def plot_comparisons(player_name):
     # Customize the layout
     fig.update_layout(
         coloraxis_colorbar=dict(
-            title="Difference",
-            title_font=dict(color="white"),  # Set the title font color to white
+            title=legend_header_map[comparison_type],
+            title_side='top',
+            title_font=dict(color="white", size=20),  # Set the title font color to white and size to 20
             x=0.5,  # Adjust the horizontal position of the color legend
             y=-0.025,  # Adjust the vertical position of the color legend
             xanchor='center',  # Center the color legend horizontally
@@ -177,11 +186,8 @@ def plot_comparisons(player_name):
         coloraxis_cmax=data_max,
         height=650,
         width=650,
-        title_x=0.135,
         plot_bgcolor='white',  # Set plot background color to white
         paper_bgcolor='rgba(0, 0, 0, 0)',
-        title=dict(text=f'{player_name} vs League xGoal', font=dict(color="white")),  # Set the title font color to white
-        title_y=0.88,  # Move the title closer to the plot
     )
 
     # Set x and y axis ranges to match data
@@ -194,6 +200,9 @@ def plot_comparisons(player_name):
     # Remove x and y axis labels
     fig.update_xaxes(title_text='')
     fig.update_yaxes(title_text='')
+
+    # Set margins to 20 pixels
+    fig.update_layout(margin=dict(l=20, r=20, t=20, b=20))
 
     # Show the interactive plot
     return fig
