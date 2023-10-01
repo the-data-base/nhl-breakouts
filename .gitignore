@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # test_data
-*.csv
+# *.csv
 
 # system files
 .vscode/
