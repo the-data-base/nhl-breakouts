@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import requests
 from base64 import b64encode
+from google.cloud import storage
+from google.oauth2 import service_account
 from dash import html
 from io import BytesIO
 from matplotlib import pyplot
@@ -112,7 +114,7 @@ def create_rink_figure(
 DuckDB (data retrieval) related functions
 - get_player_shot_plot: Get a player's shot plot from the database
 """
-def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
+def get_player_shot_plot2(player_id, comparison_type, strength_state_code='ev'):
     conn = duckdb.connect('assets/duckdb/app.db')
 
     try:
@@ -136,6 +138,28 @@ def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
     img_b64 = 'data:image/png;base64,{}'.format(encoding) # create the base64 string
 
     return html.Img(src=img_b64, style={'maxWidth': '95%'})
+
+def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
+    # retrieve the plot from GCS
+    credentials = service_account.Credentials.from_service_account_file('assets/secrets/google_storage_credentials.json')
+    client = storage.Client(project='data-arena', credentials=credentials)
+    bucket = client.get_bucket('heroku-nhl-app')
+    blob = bucket.blob(f'player_shot_plots/{player_id}_{strength_state_code}_{comparison_type}.png')
+
+    # download the blob as a string
+    plot = blob.download_as_string()
+
+    # convert the string to bytes
+    img_bytes = BytesIO(plot)
+
+    # encode the bytes object to base64
+    encoding = b64encode(img_bytes.getvalue()).decode()
+
+    # create the base64 string
+    img_b64 = 'data:image/png;base64,{}'.format(encoding)
+
+    return html.Img(src=img_b64, style={'maxWidth': '95%'})
+
 
 """
 API related functions
