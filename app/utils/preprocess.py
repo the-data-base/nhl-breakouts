@@ -10,16 +10,22 @@ All of the plots are saved to a table in the database called "plots" with the fo
     - comparison_type (VARCHAR)
     - plot (BLOB)
 """
-
+import ast
 import duckdb
 import numpy as np
 import pandas as pd
 import json
 import plotly.express as px
+import os
+from dotenv import load_dotenv
+from google.oauth2 import service_account
+from google.cloud import storage
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 from PIL import Image
 from io import BytesIO
+
+load_dotenv()
 
 """
 DuckDB related functions
@@ -209,22 +215,13 @@ def preprocess_db():
     seed_normalized_shots(conn)
 
     # create the plots table
-    conn.execute("CREATE TABLE plots (player_id INTEGER, xg_strength_state_code VARCHAR, comparison_type VARCHAR, plot BLOB)")
+    # conn.execute("CREATE TABLE plots (player_id INTEGER, xg_strength_state_code VARCHAR, comparison_type VARCHAR, plot BLOB)")
 
     # initialize variables
     strength_state_codes = ['ev']
     comparison_types = ['against_league', 'individual']
     player_ids = conn.execute("SELECT DISTINCT player_id, player_name FROM normalized_shots").fetchdf()
     progress_counter = 0
-    create_player_map = False
-
-    if create_player_map:
-        player_map = {}
-        for player_id, player_name in zip(player_ids['player_id'], player_ids['player_name']):
-            player_map[player_id] = player_name
-
-        with open('assets/player_map.json', 'w') as f:
-            json.dump(player_map, f)
 
     # for each strength state code
     for xg_strength_state_code in strength_state_codes:
@@ -256,22 +253,87 @@ def preprocess_db():
                     progress_counter += 1
                     continue
 
-                # if player_id != 8478402:
-                #     progress_counter += 1
-                #     continue
+                if player_id != 8478402:
+                    progress_counter += 1
+                    continue
 
                 # create the comparison plot
                 fig = plot_comparisons(player_df, league_df, comparison_type)
 
                 # convert the figure to a blob
-                f = BytesIO()
-                fig.write_image(f, format='png')
+                # f = BytesIO()
+                # fig.write_image(f, format='png')
                 # f.seek(0)
 
                 # save the comparison plot to a table called "plots" with a column containing the player_id, the plot, and the xg_strength_state_code
-                conn.execute(f"INSERT INTO plots VALUES ({player_id}, '{xg_strength_state_code}', '{comparison_type}', ?)", [f.getvalue()])
+                # conn.execute(f"INSERT INTO plots VALUES ({player_id}, '{xg_strength_state_code}', '{comparison_type}', ?)", [f.getvalue()])
+
+                # write the figure to a file
+                fig.write_image(f"assets/images/{player_id}_{xg_strength_state_code}_{comparison_type}.png", format='png')
+
                 progress_counter += 1
 
+    conn.close()
+
+def preprocess_gcs():
+    conn = duckdb.connect('assets/duckdb/app.db')
+    secret = ast.literal_eval(os.getenv('GOOGLE_STORAGE_CREDENTIALS'))
+    credentials = service_account.Credentials.from_service_account_info(secret)
+    client = storage.Client(project='data-arena', credentials=credentials)
+    bucket = client.get_bucket('heroku-nhl-app')
+
+    # initialize variables
+    strength_state_codes = ['ev']
+    comparison_types = ['against_league', 'individual']
+    player_ids = conn.execute("SELECT DISTINCT player_id, player_name FROM normalized_shots").fetchdf()
+    progress_counter = 0
+
+    # for each strength state code
+    for xg_strength_state_code in strength_state_codes:
+
+        # compute the league xG (expected goals)
+        league_df = conn.execute(f"SELECT * FROM normalized_shots WHERE xg_strength_state_code = '{xg_strength_state_code}'").fetchdf()
+
+        # for each player
+        for player_id in player_ids['player_id']:
+
+            # for each comparison type
+            for comparison_type in comparison_types:
+
+                # print the player id
+                print(f"Processing player {player_id} - current iteration:: {progress_counter}")
+
+                # fetch the player dataframe
+                player_query = f"""
+                    SELECT *
+                        FROM normalized_shots
+                        WHERE player_id = {player_id}
+                        AND xg_strength_state_code = '{xg_strength_state_code}'"""
+                conn.execute(player_query)
+
+                player_df = conn.fetchdf()
+
+                # remove players with fewer than 4 rows
+                if len(player_df) < 4:
+                    progress_counter += 1
+                    continue
+
+                if player_id != 8478402:
+                    progress_counter += 1
+                    continue
+
+                # create the comparison plot
+                fig = plot_comparisons(player_df, league_df, comparison_type)
+
+                # write the figure to a file on GCS
+                image_bytes = fig.to_image(format='png')
+                bytestring = BytesIO(image_bytes).read()
+
+
+                blob = bucket.blob(f"player_shot_plots/{player_id}_{xg_strength_state_code}_{comparison_type}.png")
+                blob.upload_from_string(bytestring, content_type='image/png')
+
+                progress_counter += 1
     conn.close()
 
 def get_player_mapping():
@@ -302,4 +364,4 @@ def get_player_mapping():
         json.dump(player_map, f)
 
 if __name__ == '__main__':
-    get_player_mapping()
+    preprocess_gcs()
