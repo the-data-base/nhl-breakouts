@@ -1,6 +1,5 @@
 import ast
 import datetime
-import duckdb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
@@ -24,12 +23,7 @@ pyplot.switch_backend('Agg')
 Hockey rink related functions
 - create_rink_figure: Create a hockey rink figure
 """
-def create_rink_figure(
-    plot_half = True,
-    board_radius = 25,
-    alpha = 1,
-):
-
+def create_rink_figure(plot_half = True, board_radius = 25, alpha = 1):
     # Create a new figure
     fig, ax = plt.subplots(1, 1, figsize=(10, 12), facecolor='none', edgecolor='none')
 
@@ -113,34 +107,9 @@ def create_rink_figure(
     return fig
 
 """
-DuckDB (data retrieval) related functions
-- get_player_shot_plot: Get a player's shot plot from the database
+Data retrieval related functions
+- get_player_shot_plot: Get a player's shot plot from Google Cloud Storage
 """
-def get_player_shot_plot2(player_id, comparison_type, strength_state_code='ev'):
-    conn = duckdb.connect('assets/duckdb/app.db')
-
-    try:
-        # retrieve the player's figure from the plot table
-        fig = conn.execute(
-            f"""
-            SELECT plot
-            FROM plots
-            WHERE player_id = {player_id}
-            AND comparison_type = '{comparison_type}'
-            AND xg_strength_state_code = '{strength_state_code}'
-            """
-        ).fetchone()[0]
-
-        conn.close()
-    except Exception as e:
-        return f"An error occurred: this likely means that there are no plots available for this player."
-
-    img_bytes = BytesIO(fig) # because the figure is a binary object, we need to convert it to bytes
-    encoding = b64encode(img_bytes.getvalue()).decode() # encode the bytes object to base64
-    img_b64 = 'data:image/png;base64,{}'.format(encoding) # create the base64 string
-
-    return html.Img(src=img_b64, style={'maxWidth': '95%'})
-
 def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
     try:
         # retrieve the plot from GCS
@@ -153,8 +122,6 @@ def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
     except Exception as e:
         return f"An error occurred: this likely means that there is no plot for this player."
 
-    # download the blob as a string
-
     # convert the string to bytes
     img_bytes = BytesIO(plot)
 
@@ -165,7 +132,6 @@ def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
     img_b64 = 'data:image/png;base64,{}'.format(encoding)
 
     return html.Img(src=img_b64, style={'maxWidth': '95%'})
-
 
 """
 API related functions

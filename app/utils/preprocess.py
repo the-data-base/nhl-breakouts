@@ -178,8 +178,8 @@ def plot_comparisons(player_dataframe, league_dataframe, comparison_type):
             ),
         coloraxis_cmin=data_min,
         coloraxis_cmax=data_max,
-        height=650,
-        width=650,
+        height=550,
+        width=550,
         plot_bgcolor='white',  # Set plot background color to white
         paper_bgcolor='rgba(0, 0, 0, 0)',
     )
@@ -205,78 +205,10 @@ def plot_comparisons(player_dataframe, league_dataframe, comparison_type):
     # Show the interactive plot
     return fig
 
-def preprocess_db():
-    conn = duckdb.connect('assets/duckdb/app.db')
-
-    # clear the database
-    drop_all_tables_from_database(conn)
-
-    # seed the normalized shots table
-    seed_normalized_shots(conn)
-
-    # create the plots table
-    # conn.execute("CREATE TABLE plots (player_id INTEGER, xg_strength_state_code VARCHAR, comparison_type VARCHAR, plot BLOB)")
-
-    # initialize variables
-    strength_state_codes = ['ev']
-    comparison_types = ['against_league', 'individual']
-    player_ids = conn.execute("SELECT DISTINCT player_id, player_name FROM normalized_shots").fetchdf()
-    progress_counter = 0
-
-    # for each strength state code
-    for xg_strength_state_code in strength_state_codes:
-
-        # compute the league xG (expected goals)
-        league_df = conn.execute(f"SELECT * FROM normalized_shots WHERE xg_strength_state_code = '{xg_strength_state_code}'").fetchdf()
-
-        # for each player
-        for player_id in player_ids['player_id']:
-
-            # for each comparison type
-            for comparison_type in comparison_types:
-
-                # print the player id
-                print(f"Processing player {player_id} - current iteration:: {progress_counter}")
-
-                # fetch the player dataframe
-                player_query = f"""
-                    SELECT *
-                        FROM normalized_shots
-                        WHERE player_id = {player_id}
-                        AND xg_strength_state_code = '{xg_strength_state_code}'"""
-                conn.execute(player_query)
-
-                player_df = conn.fetchdf()
-
-                # remove players with fewer than 4 rows
-                if len(player_df) < 4:
-                    progress_counter += 1
-                    continue
-
-                if player_id != 8478402:
-                    progress_counter += 1
-                    continue
-
-                # create the comparison plot
-                fig = plot_comparisons(player_df, league_df, comparison_type)
-
-                # convert the figure to a blob
-                # f = BytesIO()
-                # fig.write_image(f, format='png')
-                # f.seek(0)
-
-                # save the comparison plot to a table called "plots" with a column containing the player_id, the plot, and the xg_strength_state_code
-                # conn.execute(f"INSERT INTO plots VALUES ({player_id}, '{xg_strength_state_code}', '{comparison_type}', ?)", [f.getvalue()])
-
-                # write the figure to a file
-                fig.write_image(f"assets/images/{player_id}_{xg_strength_state_code}_{comparison_type}.png", format='png')
-
-                progress_counter += 1
-
-    conn.close()
-
 def preprocess_gcs():
+
     conn = duckdb.connect('assets/duckdb/app.db')
+    seed_normalized_shots(conn)
     secret = ast.literal_eval(os.getenv('GOOGLE_STORAGE_CREDENTIALS'))
     credentials = service_account.Credentials.from_service_account_info(secret)
     client = storage.Client(project='data-arena', credentials=credentials)
@@ -318,6 +250,7 @@ def preprocess_gcs():
                     progress_counter += 1
                     continue
 
+                # for testing
                 if player_id != 8478402:
                     progress_counter += 1
                     continue
@@ -326,7 +259,7 @@ def preprocess_gcs():
                 fig = plot_comparisons(player_df, league_df, comparison_type)
 
                 # write the figure to a file on GCS
-                image_bytes = fig.to_image(format='png')
+                image_bytes = fig.to_image(format='png', scale=1)
                 bytestring = BytesIO(image_bytes).read()
 
 
@@ -364,7 +297,7 @@ def get_player_mapping():
         json.dump(player_map, f)
 
 if __name__ == '__main__':
-    # preprocess_gcs()
+    preprocess_gcs()
 
     # write json credentials to .env
     # with open('assets/secrets/google_storage_credentials.json', 'r') as f:
