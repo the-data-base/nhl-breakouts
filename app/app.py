@@ -4,19 +4,18 @@
 
 
 #-- Libraries
-from base64 import b64encode
 from dash import Dash, html, dash_table, dcc, callback, Output, Input
 import pandas as pd
 import plotly.express as px
 import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
 from datetime import date, datetime
-import base64
 import numpy as np
 import re
 
 #-- Modules
-from utils.common_functions import get_player_headshot, plot_comparisons, normalize_xg_dataframe_by_chunk
+from utils.constants import player_map
+from utils.common_functions import get_player_headshot, get_player_shot_plot
 
 #-------------------------------------------------
 #-2- Helper functions
@@ -408,9 +407,6 @@ menu_outline_style = {
     'padding': '0px',  # Add padding for spacing
 }
 
-# Normalize XG shot coordinates when the app starts
-normalize_xg_dataframe_by_chunk()
-
 #-------------------------------------------------
 #-4- App
 #-------------------------------------------------
@@ -545,36 +541,37 @@ app.layout = html.Div([
     #-4.3- App: Shooting Ability
     #-------------------------------------------------
 
-    # Rink image
     dbc.Row(
-        # This row is going to contain 2 main columns: the rink image and data table
         dbc.Col(
-            html.Div(
-                dbc.Spinner(
-                    children=[
-                        html.Div(
-                            dcc.RadioItems(
-                                id='rink-image-comparison-type',
-                                options=[
-                                    {
-                                        'label': html.Div('Against League', style={'font-size': 15, 'padding-right': 10, 'display': 'inline'}),
-                                        'value': 'against_league',
-                                    },
-                                    {
-                                        'label': html.Div('Individual', style={'font-size': 15, 'padding-right': 10, 'display': 'inline'}),
-                                        'value': 'individual',
-                                    },
-                                ],
-                                value='against_league', # Set the default value
-                                inline=True, # configure the RadioItems to be displayed horizontally
-                                style={'padding': '10px'},  # Add padding to the radio items
-                            ),
-                            style={'text-align': 'left'}
-                        ),
-                        html.Div(html.H2(id='rink-image-title'), style={'textAlign': 'center'}),
-                        html.Div(id='rink-image'),
-                    ]
+            html.Div([
+                # Rink image title
+                html.Div(html.H3(id='rink-image-title'), style={'textAlign': 'center'}),
+
+                # Radio button group for "Comparison Type" e.g. against league or individual
+                html.Div(
+                    dbc.RadioItems(
+                        id='rink-image-comparison-type',
+                        className="btn-group",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-primary",
+                        labelCheckedClassName="active",
+                        options=[
+                            {
+                                'label': html.Div('Against League', style={'font-size': 15}),
+                                'value': 'against_league',
+                            },
+                            {
+                                'label': html.Div('Individual', style={'font-size': 15}),
+                                'value': 'individual',
+                            },
+                        ],
+                        value='against_league', # Set the default value
+                        inline=True, # configure the RadioItems to be displayed horizontally
+                        style={'padding': '10px'},  # Add padding to the radio items
+                    ),
+                    style={'text-align': 'center'}
                 ),
+                html.Div(id='rink-image'),],
                 style={'textAlign': 'center'}
             ),
             width=12,
@@ -869,19 +866,17 @@ def set_rink_image_title(player_name, comparison_type):
     if comparison_type == 'against_league':
         return f'{player_name} vs. League'
     elif comparison_type == 'individual':
-        return f'{player_name} Shot XG'
+        return f'{player_name} Shot xG'
 
 @callback(
     Output(component_id='rink-image', component_property='children'),
     Input(component_id='player-name-dropdown', component_property='value'),
     Input(component_id='rink-image-comparison-type', component_property='value')
 )
-def plot_rink(player_name, comparison_type):
-    fig = plot_comparisons(player_name, comparison_type)
-    img_bytes = fig.to_image(format='png')
-    encoding = b64encode(img_bytes).decode()
-    img_b64 = 'data:image/png;base64,{}'.format(encoding)
-    return html.Img(src=img_b64, style={'maxWidth': '95%'})
+def update_rink(player_name, comparison_type):
+    # return the key from player_map dict where the value matches the selected player
+    player_id = [key for key, value in player_map.items() if value == player_name][0]
+    return get_player_shot_plot(player_id, comparison_type)
 
 @callback(
     Output(component_id='player-image', component_property='src'),
