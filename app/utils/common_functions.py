@@ -1,7 +1,9 @@
+import ast
 import datetime
 import duckdb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import os
 import pandas as pd
 import requests
 from base64 import b64encode
@@ -140,11 +142,15 @@ def get_player_shot_plot2(player_id, comparison_type, strength_state_code='ev'):
     return html.Img(src=img_b64, style={'maxWidth': '95%'})
 
 def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
-    # retrieve the plot from GCS
-    credentials = service_account.Credentials.from_service_account_file('assets/secrets/google_storage_credentials.json')
-    client = storage.Client(project='data-arena', credentials=credentials)
-    bucket = client.get_bucket('heroku-nhl-app')
-    blob = bucket.blob(f'player_shot_plots/{player_id}_{strength_state_code}_{comparison_type}.png')
+    try:
+        # retrieve the plot from GCS
+        secret = ast.literal_eval(os.getenv('GOOGLE_STORAGE_CREDENTIALS'))
+        credentials = service_account.Credentials.from_service_account_info(secret)
+        client = storage.Client(project='data-arena', credentials=credentials)
+        bucket = client.get_bucket('heroku-nhl-app')
+        blob = bucket.blob(f'player_shot_plots/{player_id}_{strength_state_code}_{comparison_type}.png')
+    except Exception as e:
+        return f"An error occurred: this likely means that there are no plots available for this player."
 
     # download the blob as a string
     plot = blob.download_as_string()
