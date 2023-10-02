@@ -1,16 +1,14 @@
 import datetime
+import duckdb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import numpy as np
-import os
 import pandas as pd
-import plotly.express as px
 import requests
+from base64 import b64encode
+from dash import html
 from io import BytesIO
 from matplotlib import pyplot
 from PIL import Image
-from scipy.interpolate import griddata
-from scipy.ndimage import gaussian_filter
 
 """
 Initialization
@@ -21,11 +19,6 @@ pyplot.switch_backend('Agg')
 """
 Hockey rink related functions
 - create_rink_figure: Create a hockey rink figure
-- normalize_shot_coordinates: Normalize shot coordinates so that all shots are shooting "right"
-- normalize_xg_dataframe_by_chunk: Normalize the xG dataframe by chunk
-- get_player_xg: Get the xG for a specific player
-- get_league_xg: Get the xG for the entire league
-- plot_comparisons: Plot the xG comparisons
 """
 def create_rink_figure(
     plot_half = True,
@@ -115,202 +108,31 @@ def create_rink_figure(
 
     return fig
 
-def normalize_shot_coordinates(input_df):
-    # Normalize x & y coordinates such that when x is negative, flip x and y to force to be shooting "right"
-    normalized_df = input_df.copy()
-    normalized_df['adj_x_coord'] = normalized_df.apply(lambda row: -row['x_coord'] if row['x_coord'] < 0 else row['x_coord'], axis=1)
-    normalized_df['adj_y_coord'] = normalized_df.apply(lambda row: -row['y_coord'] if row['x_coord'] < 0 else row['y_coord'], axis=1)
+"""
+DuckDB (data retrieval) related functions
+- get_player_shot_plot: Get a player's shot plot from the database
+"""
+def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
+    conn = duckdb.connect('assets/duckdb/app.db')
 
-    # print("Normalized Dataframe Summary Stats")
-    # print(f"Rows: {len(normalized_df)}")
-    # print("xGoals Max {:.2f}".format(normalized_df['xg_proba'].max()))
-    # print("xGoals Mean {:.2f}".format(normalized_df['xg_proba'].mean()))
-    # print("X Cords: {}, {}".format(normalized_df['x_coord'].min(),normalized_df['adj_x_coord'].max()))
-    # print("Y Cords: {}, {}".format(normalized_df['y_coord'].min(),normalized_df['adj_y_coord'].max()))
+    # retrieve the player's figure from the plot table
+    fig = conn.execute(
+        f"""
+        SELECT plot
+        FROM plots
+        WHERE player_id = {player_id}
+        AND comparison_type = '{comparison_type}'
+        AND xg_strength_state_code = '{strength_state_code}'
+        """
+    ).fetchone()[0]
 
-    return normalized_df
+    conn.close()
 
-def create_xg_array(data, is_smooth = True):
-    [x,y] = np.round(np.meshgrid(np.linspace(0,100,100), np.linspace(-42.5, 42.5, 85)))
-    xgoals = griddata(
-                (data['adj_x_coord'], data['adj_y_coord']),
-                data['xg_proba'],
-                (x, y),
-                method = 'cubic',
-                fill_value = 0)
-    xgoals = np.where(xgoals < 0, 0, xgoals)
+    img_bytes = BytesIO(fig) # because the figure is a binary object, we need to convert it to bytes
+    encoding = b64encode(img_bytes.getvalue()).decode() # encode the bytes object to base64
+    img_b64 = 'data:image/png;base64,{}'.format(encoding) # create the base64 string
 
-    if is_smooth:
-        xgoals = gaussian_filter(xgoals, sigma = 3)
-
-    return xgoals
-
-def normalize_xg_dataframe_by_chunk(chunksize=100000):
-    raw_filename = 'assets/csv/bigquery/202202_player_shots.csv'
-    normalized_filename = 'assets/csv/bigquery/202202_player_shots_normalized.csv'
-    if os.path.exists(normalized_filename):
-        os.remove(normalized_filename)
-    # Read the data in chunks
-    raw_df = pd.read_csv(raw_filename, delimiter= ',', chunksize=chunksize)
-
-    # Normalize each chunk, writing it back to a single csv in append mode
-    for i, chunk in enumerate(raw_df):
-        print(f"Normalizing chunk {i}")
-        subset_df = chunk[[
-            'player_name',
-            'player_id',
-            'event_type',
-            'play_period',
-            'zone_type',
-            'zone',
-            'xg_strength_state_code',
-            'x_goal',
-            'xg_proba',
-            'play_distance',
-            'play_angle',
-            'x_coord',
-            'y_coord']].copy()
-        normalized_df = normalize_shot_coordinates(subset_df)
-        normalized_df.to_csv(normalized_filename, mode='a', header=True, index=False)
-    return True
-
-def get_player_xg(filename, xg_strength_state_code, player_name, chunksize=100000):
-    df = pd.read_csv(filename, delimiter= ',', chunksize=chunksize)
-    player_df = pd.DataFrame()
-    for i, chunk in enumerate(df):
-        print('Processing player chunk: {}'.format(i))
-        # concat chunks vertically if chunk player_name matches player_name and xg_strength_state_code matches xg_strength_state_code (both conditions on the same line)
-        subset_chunk = chunk.loc[(chunk['player_name'] == player_name) & (chunk['xg_strength_state_code'] == xg_strength_state_code)]
-        player_df = pd.concat([player_df, subset_chunk])
-
-    player_xgoals = create_xg_array(player_df, is_smooth = True)
-
-    return player_xgoals
-
-def get_league_xg(filename, xg_strength_state_code, chunksize=100000):
-    df = pd.read_csv(filename, delimiter= ',', chunksize=chunksize)
-    league_df = pd.DataFrame()
-    for i, chunk in enumerate(df):
-        print('Processing league chunk: {}'.format(i))
-        subset_chunk = chunk.loc[chunk['xg_strength_state_code'] == xg_strength_state_code]
-        league_df = pd.concat([league_df, subset_chunk])
-        league_xgoals = create_xg_array(league_df, is_smooth = True)
-
-    # save league xgoals to csv file
-    league_xgoals = create_xg_array(league_df, is_smooth = True)
-
-    return league_xgoals
-
-def plot_comparisons(player_name, comparison_type):
-    xg_strength_state_code = 'ev'
-    normalized_filename = 'assets/csv/bigquery/202202_player_shots_normalized.csv'
-
-    # Always fetch the player XG
-    player_xg = get_player_xg(normalized_filename, xg_strength_state_code, player_name)
-
-    # If comparison type is against league, fetch the league XG
-    if comparison_type == 'against_league':
-        all_xg = get_league_xg(normalized_filename, xg_strength_state_code)
-        new_diff = player_xg - all_xg
-        data_min = new_diff.min()
-        data_max = new_diff.max()
-
-    # If comparison type is against individual, use the player XG
-    elif comparison_type == 'individual':
-        data_min = player_xg.min()
-        data_max = player_xg.max()
-        new_diff = player_xg
-
-    # Legend header map
-    legend_header_map = {
-        'against_league': 'Difference vs. League XG',
-        'individual': 'Individual XG'
-    }
-
-    # Create the rink
-    # rink = create_rink_figure()
-    # rink.savefig('dashapp/images/rink_img.png', format='png', dpi=300, transparent=True)
-
-    # Load the images
-    rink_img = Image.open('assets/images/rink.png')
-
-    # Set the min and max values for the color scale
-    if abs(data_min) > data_max:
-        data_max = data_min * -1
-    elif data_max > abs(data_min):
-        data_min = data_max * -1
-
-    # Create a meshgrid
-    x, y = np.meshgrid(np.linspace(0, 89, 100), np.linspace(-42.5, 42.5, 85))
-
-    meshgrid_df = pd.DataFrame({'x': x.flatten(), 'y': y.flatten(), 'z': new_diff.flatten()})
-    meshgrid_df['x'] = meshgrid_df['x'].round(0)
-    meshgrid_df['y'] = meshgrid_df['y'].round(0)
-    meshgrid_df['z'] = meshgrid_df['z'].round(4)
-
-    # Create a scatter plot using plotly
-    fig = px.scatter(meshgrid_df, x='x', y='y', color='z',
-                    color_continuous_scale='RdBu_r',
-                    labels={'z': 'Difference'},
-                    template='plotly',
-                    range_color=[data_min, data_max])
-
-    # Add the background rink image
-    fig.add_layout_image(
-        source=rink_img,
-        x=-17, # Bunch of trial and error to figure out
-        y=56, # Bunch of trial and error to figure out
-        xref="x",
-        yref="y",
-        sizex=131, # Bunch of trial and error to figure out
-        sizey=111, # Bunch of trial and error to figure out
-        opacity=1,
-        sizing="stretch",
-        layer="above"
-    )
-
-    # Customize the layout
-    fig.update_layout(
-        coloraxis_colorbar=dict(
-            title=legend_header_map[comparison_type],
-            title_side='top',
-            title_font=dict(color="white", size=18),  # Set the title font color to white and size to 20
-            x=0.5,  # Adjust the horizontal position of the color legend
-            y=-0.025,  # Adjust the vertical position of the color legend
-            xanchor='center',  # Center the color legend horizontally
-            yanchor='top',  # Place the color legend below the plot
-            orientation='h',  # Display the color legend horizontally
-            tickfont=dict(color="white"),  # Set the tick font color to white
-            nticks=10  # Set the number of tick marks on the color legend
-            ),
-        coloraxis_cmin=data_min,
-        coloraxis_cmax=data_max,
-        height=650,
-        width=650,
-        plot_bgcolor='white',  # Set plot background color to white
-        paper_bgcolor='rgba(0, 0, 0, 0)',
-    )
-
-    if comparison_type == 'individual':
-        fig.update_layout(coloraxis_showscale=False)
-
-
-    # Set x and y axis ranges to match data
-    fig.update_xaxes(range=[-0.1, 100], tickfont=dict(color="white"))
-    fig.update_yaxes(range=[-42.6, 42.6], tickfont=dict(color="white"), showticklabels=False)
-
-    # Remove gridlines and background from scatterplot
-    fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False)
-
-    # Remove x and y axis labels
-    fig.update_xaxes(title_text='')
-    fig.update_yaxes(title_text='')
-
-    # Set margins to 20 pixels
-    fig.update_layout(margin=dict(l=20, r=20, t=20, b=20))
-
-    # Show the interactive plot
-    return fig
+    return html.Img(src=img_b64, style={'maxWidth': '95%'})
 
 """
 API related functions
