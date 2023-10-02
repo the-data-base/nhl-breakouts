@@ -364,4 +364,11 @@ def get_player_mapping():
         json.dump(player_map, f)
 
 if __name__ == '__main__':
-    preprocess_gcs()
+    # preprocess_gcs()
+
+    # write json credentials to .env
+    # with open('assets/secrets/google_storage_credentials.json', 'r') as f:
+    #     credentials = json.load(f)
+
+    # with open('.env', 'a') as f:
+    #     f.write(f"\nGOOGLE_STORAGE_CREDENTIALS={credentials}")

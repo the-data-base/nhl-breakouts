@@ -150,7 +150,7 @@ def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
         bucket = client.get_bucket('heroku-nhl-app')
         blob = bucket.blob(f'player_shot_plots/{player_id}_{strength_state_code}_{comparison_type}.png')
     except Exception as e:
-        return f"An error occurred: this likely means that there are no plots available for this player."
+        return f"An error occurred {e}: this likely means that there are no plots available for this player."
 
     # download the blob as a string
     plot = blob.download_as_string()
