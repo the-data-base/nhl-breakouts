@@ -50,6 +50,8 @@ def drop_all_tables_from_database(conn):
 
     # for each table, drop it
     for table in tables['name']:
+        if table == 'plots':
+            continue
         print(f"Dropping table {table}")
         conn.execute(f"DROP TABLE IF EXISTS {table}")
     print("All tables dropped")
@@ -197,7 +199,7 @@ def plot_comparisons(player_dataframe, league_dataframe, comparison_type):
     # Show the interactive plot
     return fig
 
-if __name__ == '__main__':
+def preprocess_db():
     conn = duckdb.connect('assets/duckdb/app.db')
 
     # clear the database
@@ -254,9 +256,9 @@ if __name__ == '__main__':
                     progress_counter += 1
                     continue
 
-                if player_id != 8478402:
-                    progress_counter += 1
-                    continue
+                # if player_id != 8478402:
+                #     progress_counter += 1
+                #     continue
 
                 # create the comparison plot
                 fig = plot_comparisons(player_df, league_df, comparison_type)
@@ -271,3 +273,33 @@ if __name__ == '__main__':
                 progress_counter += 1
 
     conn.close()
+
+def get_player_mapping():
+    conn = duckdb.connect('assets/duckdb/app.db')
+
+    # initialize variables
+    player_ids_1 = conn.execute("SELECT DISTINCT player_id, player_name FROM normalized_shots").fetchdf()
+    player_ids_2 = conn.execute("SELECT DISTINCT player_id, player_name FROM read_csv_auto('assets/csv/bigquery/202202_player_ranks.csv')").fetchdf()
+
+    player_map = {}
+    counter_1 = 0
+    for player_id, player_name in zip(player_ids_1['player_id'], player_ids_1['player_name']):
+        player_map[player_id] = player_name
+        counter_1 += 1
+
+    print(f"Processed {counter_1} players")
+
+    counter_2 = 0
+    for player_id, player_name in zip(player_ids_2['player_id'], player_ids_2['player_name']):
+        # if the player_id is not a key in player_map, add it
+        if player_id not in player_map.keys():
+            player_map[player_id] = player_name
+            counter_2 += 1
+
+    print(f"Processed additional {counter_2} players")
+
+    with open('assets/player_map.json', 'w') as f:
+        json.dump(player_map, f)
+
+if __name__ == '__main__':
+    get_player_mapping()
