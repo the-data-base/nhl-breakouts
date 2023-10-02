@@ -115,18 +115,21 @@ DuckDB (data retrieval) related functions
 def get_player_shot_plot(player_id, comparison_type, strength_state_code='ev'):
     conn = duckdb.connect('assets/duckdb/app.db')
 
-    # retrieve the player's figure from the plot table
-    fig = conn.execute(
-        f"""
-        SELECT plot
-        FROM plots
-        WHERE player_id = {player_id}
-        AND comparison_type = '{comparison_type}'
-        AND xg_strength_state_code = '{strength_state_code}'
-        """
-    ).fetchone()[0]
+    try:
+        # retrieve the player's figure from the plot table
+        fig = conn.execute(
+            f"""
+            SELECT plot
+            FROM plots
+            WHERE player_id = {player_id}
+            AND comparison_type = '{comparison_type}'
+            AND xg_strength_state_code = '{strength_state_code}'
+            """
+        ).fetchone()[0]
 
-    conn.close()
+        conn.close()
+    except Exception as e:
+        return f"An error occurred: this likely means that there are no plots available for this player."
 
     img_bytes = BytesIO(fig) # because the figure is a binary object, we need to convert it to bytes
     encoding = b64encode(img_bytes.getvalue()).decode() # encode the bytes object to base64

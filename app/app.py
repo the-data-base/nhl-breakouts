@@ -571,7 +571,13 @@ app.layout = html.Div([
                     ),
                     style={'text-align': 'center'}
                 ),
-                html.Div(id='rink-image'),],
+                # Rink with spinner
+                dbc.Spinner(
+                    children=[
+                        html.Div(id='rink-image'),
+                    ]
+                )
+                ],
                 style={'textAlign': 'center'}
             ),
             width=12,
@@ -899,8 +905,14 @@ def set_player_card_colors(selected_player, df = ranks_cap_df_raw):
     # filter team_colors dataframe for the selected player's team
     team_colors = colors[colors['team_code'] == stats['team_code']]
     # get the primary and secondary colors for the selected player's team
-    primary_color = team_colors[team_colors['color_type']=='primary'].iloc[0]['hex']
-    secondary_color = team_colors[team_colors['color_type']=='secondary'].iloc[0]['hex']
+
+    try:
+        primary_color = team_colors[team_colors['color_type']=='primary'].iloc[0]['hex']
+        secondary_color = team_colors[team_colors['color_type']=='secondary'].iloc[0]['hex']
+    # set primary to white, secondary to grey if no colors are found
+    except:
+        primary_color = '#ffffff'
+        secondary_color = '#cccccc'
 
     # Div styles
     style_primary_div = {'background-color': primary_color, 'text-align': 'center'}
@@ -914,4 +926,4 @@ def set_player_card_colors(selected_player, df = ranks_cap_df_raw):
 
 # Run the app
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, dev_tools_hot_reload=False)
